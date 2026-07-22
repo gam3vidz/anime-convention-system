@@ -7,8 +7,9 @@ Delta H Safety and missed shift alert setup
    allowed as a temporary fallback.
 
 2. Database
-   Run `php scripts/migrate.php` once for each environment before serving the
-   application. Normal API requests never create or alter database tables.
+   Run `php scripts/migrate.php EXPECTED_DATABASE` once for each environment
+   before serving the application. The exact database argument must match
+   `api/config.php`; normal API requests never create or alter database tables.
 
 3. Evidence storage
    Keep api/uploads/.htaccess in place. It blocks direct web access so uploaded

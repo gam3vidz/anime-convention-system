@@ -34,7 +34,7 @@ The ZIP contains only allowlisted runtime files. It deliberately excludes live c
 1. Copy `api/config.example.php` to `api/config.php` on the server.
 2. Fill the server copy with database and Discord credentials.
 3. Keep `api/config.php` out of Git and deployment archives.
-4. Run `php scripts/migrate.php` once for that environment.
+4. Run `php scripts/migrate.php EXPECTED_DATABASE` once for that environment. The explicit database name is a fail-closed guard against running a migration on the wrong database.
 5. Deploy to an isolated staging hostname before production.
 
 See [`docs/DEPLOY-PLESK.md`](docs/DEPLOY-PLESK.md) for the staging and Plesk Git procedure.

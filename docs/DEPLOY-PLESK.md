@@ -37,10 +37,12 @@ Copy `api/config.example.php` to `api/config.php` **inside staging only**, then 
 Run the migration with Plesk's PHP 8.2 binary:
 
 ```text
-php scripts/migrate.php
+php scripts/migrate.php EXPECTED_DATABASE
 ```
 
-If shell access is unavailable, use Plesk **Scheduled Tasks** to run the command once from the staging document root, confirm the success output, and remove or disable that one-time task afterward.
+Replace `EXPECTED_DATABASE` with the exact configured database name. The migration refuses to connect or alter tables when the argument does not match `api/config.php`.
+
+If shell access is unavailable, use Plesk **Scheduled Tasks** to run `scripts/migrate.php` once with the exact database name in **with arguments**, confirm the success output, and cancel the form without saving a recurring task.
 
 Normal web requests no longer perform `CREATE TABLE` or `ALTER TABLE` operations.
 

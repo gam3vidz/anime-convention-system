@@ -17,7 +17,78 @@ function ensureColumnDefinition(PDO $pdo, string $table, string $column, string 
     }
 }
 
+function ensureBaseTables(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS users (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        name VARCHAR(160) NOT NULL DEFAULT '',
+        email VARCHAR(255) NOT NULL DEFAULT '',
+        password_hash VARCHAR(255) NOT NULL DEFAULT '',
+        role ENUM('admin','manager','volunteer') NOT NULL DEFAULT 'volunteer',
+        rank VARCHAR(60) NOT NULL DEFAULT 'Volunteer',
+        status ENUM('pending','approved','denied') NOT NULL DEFAULT 'pending',
+        department VARCHAR(120) NOT NULL DEFAULT '',
+        applied_department VARCHAR(120) NOT NULL DEFAULT '',
+        dates_available VARCHAR(255) NOT NULL DEFAULT '',
+        hotel_needed VARCHAR(10) NOT NULL DEFAULT 'No',
+        blacklisted TINYINT(1) NOT NULL DEFAULT 0,
+        clocked_in TINYINT(1) NOT NULL DEFAULT 0,
+        clocked_at DATETIME NULL,
+        wed_loadout TINYINT(1) NOT NULL DEFAULT 0,
+        sun_loadout TINYINT(1) NOT NULL DEFAULT 0,
+        phone VARCHAR(40) NOT NULL DEFAULT '',
+        emergency_contact VARCHAR(255) NOT NULL DEFAULT '',
+        shirt_size VARCHAR(10) NOT NULL DEFAULT '',
+        allergies VARCHAR(255) NOT NULL DEFAULT '',
+        gender VARCHAR(30) NOT NULL DEFAULT '',
+        hotel_room VARCHAR(100) NOT NULL DEFAULT '',
+        hotel_checked_in TINYINT(1) NOT NULL DEFAULT 0,
+        profile_photo MEDIUMTEXT NULL,
+        friend VARCHAR(120) NOT NULL DEFAULT '',
+        discord VARCHAR(120) NOT NULL DEFAULT '',
+        password_reset_requested TINYINT(1) NOT NULL DEFAULT 0,
+        password_reset_requested_at DATETIME NULL,
+        availability_json LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+        buddy_request VARCHAR(255) NOT NULL DEFAULT '',
+        carpool_request VARCHAR(255) NOT NULL DEFAULT '',
+        discord_id VARCHAR(80) NOT NULL DEFAULT '',
+        discord_username VARCHAR(120) NOT NULL DEFAULT '',
+        discord_avatar VARCHAR(255) NOT NULL DEFAULT '',
+        discord_roles_json LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_email (email),
+        INDEX idx_discord_id (discord_id),
+        INDEX idx_role (role),
+        INDEX idx_status (status),
+        INDEX idx_department (department)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS shifts (
+        id VARCHAR(60) NOT NULL,
+        department VARCHAR(120) NOT NULL DEFAULT '',
+        title VARCHAR(200) NOT NULL DEFAULT '',
+        shift_day VARCHAR(30) NOT NULL DEFAULT '',
+        shift_time VARCHAR(120) NOT NULL DEFAULT '',
+        hours DECIMAL(5,1) NOT NULL DEFAULT 0,
+        capacity INT NOT NULL DEFAULT 1,
+        note TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_department (department),
+        INDEX idx_shift_day (shift_day)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_shifts (
+        user_id BIGINT UNSIGNED NOT NULL,
+        shift_id VARCHAR(60) NOT NULL,
+        PRIMARY KEY (user_id, shift_id),
+        INDEX idx_shift_id (shift_id),
+        INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
 function ensureSchema(PDO $pdo): void {
+    ensureBaseTables($pdo);
     ensureColumn($pdo, 'users', 'phone', 'VARCHAR(40) NOT NULL DEFAULT \'\'');
     ensureColumn($pdo, 'users', 'emergency_contact', 'VARCHAR(255) NOT NULL DEFAULT \'\'');
     ensureColumn($pdo, 'users', 'shirt_size', 'VARCHAR(10) NOT NULL DEFAULT \'\'');
