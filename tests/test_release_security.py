@@ -94,12 +94,15 @@ class ReleaseSecurityTests(unittest.TestCase):
 
     def test_apache_blocks_source_and_secret_files(self):
         htaccess = (ROOT / ".htaccess").read_text(encoding="utf-8")
+        api_htaccess = (ROOT / "api/.htaccess").read_text(encoding="utf-8")
         self.assertIn("Options -Indexes", htaccess)
         self.assertIn("config\\.php", htaccess)
         self.assertIn("\\.(sql|", htaccess)
         self.assertIn("^(tests|scripts|migrations|docs|\\.github)", htaccess)
         self.assertIn("X-Content-Type-Options", htaccess)
         self.assertIn("Content-Security-Policy", htaccess)
+        self.assertIn('^config\\.php$', api_htaccess)
+        self.assertIn("Require all denied", api_htaccess)
 
     def test_live_configuration_is_not_versioned(self):
         self.assertFalse((ROOT / "api/config.php").exists())

@@ -4,6 +4,10 @@
   RewriteRule ^discord-interactions\.php$ api.php?action=discord_interactions [L,QSA]
 </IfModule>
 
+<FilesMatch "^config\.php$">
+  Require all denied
+</FilesMatch>
+
 <FilesMatch "^(api|discord-callback|discord-interactions)\.php$">
   SetHandler application/x-httpd-php
 </FilesMatch>
