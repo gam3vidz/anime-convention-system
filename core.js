@@ -318,59 +318,104 @@ function bindEvents() {
     applyState({ user: null, volunteers: [], shifts: [] });
   });
 
-  $$(".tab").forEach(tab => {
-    tab.addEventListener("click", () => switchView(tab.dataset.view));
-  });
+  on("#sidebarToggle", "click", toggleSidebar);
+  on("#sidebarScrim", "click", () => setSidebarOpen(false));
 }
+
+function setSidebarOpen(open) {
+  const sidebar = $("#sidebar");
+  if (sidebar) sidebar.classList.toggle("open", open);
+  const scrim = $("#sidebarScrim");
+  if (scrim) scrim.classList.toggle("open", open);
+  const toggle = $("#sidebarToggle");
+  if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function toggleSidebar() {
+  const sidebar = $("#sidebar");
+  setSidebarOpen(!sidebar?.classList.contains("open"));
+}
+
+// Sidebar navigation model. Visibility is derived entirely from the
+// server-provided session/user capabilities — the server stays
+// authoritative; these checks only decide what to render.
+const SIDEBAR_NAV_ITEMS = [
+  { view: "volunteerView", label: "Volunteer", icon: "V", show: () => true },
+  { view: "guestRelationsView", label: "Guest Relations", icon: "G", show: (user) => !!user.canGuestRelations },
+  { view: "safetyView", label: "Safety", icon: "S", show: (user) => !!user.canSafety },
+  { view: "vendorHallView", label: "Vendor Hall", icon: "H", show: (user) => !!user.canVendorHall },
+  { view: "managementView", label: "Management", icon: "M", show: (user) => isManagementUser(user) },
+  { view: "adminView", label: "Admin", icon: "A", show: (user) => isFullAdmin(user) }
+];
 
 function updateAuthView() {
   const isSignedIn = !!currentUser;
 
   if ($("#authView")) $("#authView").hidden = isSignedIn;
-  if ($(".app-header")) $(".app-header").hidden = !isSignedIn;
-  if ($("main")) $("main").hidden = !isSignedIn;
+  if ($("#appShell")) $("#appShell").hidden = !isSignedIn;
 
   document.body.classList.toggle("logged-in", isSignedIn);
 
-  if (isSignedIn) {
-    const accountRank = needsApplication(currentUser) ? "Application pending" : (currentUser.rank || "Volunteer");
-    if ($("#accountLabel")) $("#accountLabel").textContent = `${currentUser.name} (${accountRank})`;
-    if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = !currentUser.canGuestRelations;
-    if ($("#tabSafety")) $("#tabSafety").hidden = !currentUser.canSafety;
-    if ($("#tabVendorHall")) $("#tabVendorHall").hidden = !currentUser.canVendorHall;
+  if (!isSignedIn) {
+    renderSidebarNav();
+    setSidebarOpen(false);
+    return;
+  }
 
-    if (needsApplication(currentUser)) {
-      if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = true;
-      if ($("#tabSafety")) $("#tabSafety").hidden = true;
-      if ($("#tabVendorHall")) $("#tabVendorHall").hidden = true;
-      if ($("#tabManagement")) $("#tabManagement").hidden = true;
-      if ($("#tabAdmin")) $("#tabAdmin").hidden = true;
-      $$(".tab").forEach(tab => tab.hidden = true);
-      switchView("applicationView");
-    } else if (isManagementUser(currentUser)) {
-      $$(".tab").forEach(tab => tab.hidden = false);
-      if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = !currentUser.canGuestRelations;
-      if ($("#tabSafety")) $("#tabSafety").hidden = !currentUser.canSafety;
-      if ($("#tabVendorHall")) $("#tabVendorHall").hidden = !currentUser.canVendorHall;
-      if ($("#tabManagement")) $("#tabManagement").hidden = false;
-      if ($("#tabAdmin")) $("#tabAdmin").hidden = !isFullAdmin(currentUser);
-      switchView("managementView");
-    } else {
-      $$(".tab").forEach(tab => tab.hidden = false);
-      if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = !currentUser.canGuestRelations;
-      if ($("#tabSafety")) $("#tabSafety").hidden = !currentUser.canSafety;
-      if ($("#tabVendorHall")) $("#tabVendorHall").hidden = !currentUser.canVendorHall;
-      if ($("#tabManagement")) $("#tabManagement").hidden = true;
-      if ($("#tabAdmin")) $("#tabAdmin").hidden = true;
-      switchView(currentUser.canSafety ? "safetyView" : currentUser.canGuestRelations ? "guestRelationsView" : currentUser.canVendorHall ? "vendorHallView" : "volunteerView");
-    }
+  renderUserMini();
+  renderSidebarNav();
+
+  if (needsApplication(currentUser)) {
+    switchView("applicationView");
+  } else if (isManagementUser(currentUser)) {
+    switchView("managementView");
+  } else {
+    switchView(currentUser.canSafety ? "safetyView" : currentUser.canGuestRelations ? "guestRelationsView" : currentUser.canVendorHall ? "vendorHallView" : "volunteerView");
   }
 }
 
+function renderUserMini() {
+  if (!currentUser) return;
+  const nameEl = $("#userName");
+  const badgeEl = $("#userRoleBadge");
+  const avatarEl = $("#userAvatar");
+  if (nameEl) nameEl.textContent = currentUser.name || "Volunteer";
+  if (badgeEl) badgeEl.textContent = needsApplication(currentUser) ? "Application pending" : (currentUser.rank || "Volunteer");
+  if (avatarEl) avatarEl.textContent = initials(currentUser.name);
+}
+
+function renderSidebarNav() {
+  const nav = $("#sidebarNav");
+  if (!nav) return;
+  if (!currentUser) { nav.innerHTML = ""; return; }
+
+  const items = needsApplication(currentUser)
+    ? [{ view: "applicationView", label: "Application", icon: "A" }]
+    : SIDEBAR_NAV_ITEMS.filter(item => item.show(currentUser));
+
+  const activeView = document.body.dataset.view;
+  nav.innerHTML = `<span class="nav-section-label">Workspace</span>` + items.map(item => `
+    <a class="nav-item${item.view === activeView ? " active" : ""}" data-view="${item.view}" role="button" tabindex="0">
+      <span class="nav-item-icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
+      <span>${escapeHtml(item.label)}</span>
+    </a>`).join("");
+
+  nav.querySelectorAll(".nav-item").forEach(el => {
+    el.addEventListener("click", () => switchView(el.dataset.view));
+    el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        switchView(el.dataset.view);
+      }
+    });
+  });
+}
+
 function switchView(viewId) {
-  $$(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.view === viewId));
+  $$("#sidebarNav .nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === viewId));
   $$(".view").forEach(view => view.classList.toggle("active", view.id === viewId));
   document.body.dataset.view = viewId;
+  setSidebarOpen(false);
 }
 
 // PUT YOUR ACTUAL DEPARTMENTS HERE:

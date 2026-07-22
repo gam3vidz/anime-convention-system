@@ -8,20 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=39" />
+    <link rel="stylesheet" href="styles.css?v=40" />
     <style>
-      .auth-shell {
-        place-items: center;
-        padding: 40px 18px;
-      }
-      .auth-card-single {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        max-width: 760px;
-        margin: 0 auto;
-        gap: 20px;
-      }
       .scrollable-form {
         max-height: none;
         overflow: visible;
@@ -51,69 +39,148 @@
       }
 
       /* Lockdown styles to prevent UI flashing before JS loads */
-      #authView, main, .app-header {
+      #authView, #appShell {
         display: none !important;
       }
       body:not(.logged-in) #authView {
         display: flex !important;
       }
-      body.logged-in main {
-        display: block !important;
-      }
-      body.logged-in .app-header {
+      body.logged-in #appShell {
         display: flex !important;
       }
     </style>
   </head>
   <body>
-    <section id="authView" class="auth-shell login-screen" aria-labelledby="authTitle">
+    <!-- ════════════════════════════════════════════════
+         LOGIN / LANDING SCREEN  (exact Pages login card)
+         ════════════════════════════════════════════════ -->
+    <section id="authView" class="login-screen" aria-labelledby="authTitle">
       <div class="login-bg-grid" aria-hidden="true"></div>
-      <div class="auth-card auth-card-single">
-        <div class="auth-brand-panel">
-          <span class="brand-mark" aria-hidden="true" style="margin: 0 auto 16px auto;">DH</span>
-          <p class="eyebrow">Delta H volunteer operations</p>
-          <h1 id="authTitle">Your convention command center</h1>
-          <p class="summary">Schedules, check-in, guest travel, Safety incidents, and coordinator alerts in one Discord-linked portal.</p>
-          <div class="auth-preview" aria-hidden="true">
-            <span>Discord required</span>
-            <span>Role checked</span>
-            <span>Schedule ready</span>
-          </div>
+      <div class="login-card">
+        <div class="login-logo">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+            <rect width="56" height="56" rx="14" fill="url(#lg-grad)"/>
+            <path d="M14 16 L22 40 L28 28 L34 40 L42 16" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <defs>
+              <linearGradient id="lg-grad" x1="0" y1="0" x2="56" y2="56">
+                <stop offset="0%" stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+          </svg>
         </div>
+        <h1 id="authTitle">Delta H Scheduling</h1>
+        <p class="login-subtitle">Volunteer Scheduling Portal for <strong>Delta H</strong></p>
+        <div class="anime-dance-stage" aria-hidden="true">
+          <svg viewBox="0 0 360 190" role="presentation" focusable="false">
+            <defs>
+              <linearGradient id="anime-stage" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#312e81"/>
+                <stop offset="1" stop-color="#7c3aed"/>
+              </linearGradient>
+              <linearGradient id="anime-left-outfit" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#f9a8d4"/><stop offset="1" stop-color="#db2777"/>
+              </linearGradient>
+              <linearGradient id="anime-center-outfit" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#7c3aed"/>
+              </linearGradient>
+              <linearGradient id="anime-right-outfit" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#0891b2"/>
+              </linearGradient>
+            </defs>
+            <path class="anime-stage-floor" d="M22 151 Q180 112 338 151 L323 174 Q180 150 37 174Z" fill="url(#anime-stage)"/>
+            <circle class="anime-spark sparkle-one" cx="52" cy="38" r="4"/><circle class="anime-spark sparkle-two" cx="305" cy="48" r="3"/><circle class="anime-spark sparkle-three" cx="180" cy="17" r="3"/>
 
-        <form id="loginForm" class="auth-form">
-          <button id="discordLoginBtn" class="primary-button login-oauth-btn" type="button">Log in with Discord</button>
-          <p class="summary">New volunteers sign up with Discord. A pending account is created automatically for coordinator approval.</p>
-          <p id="loginMessage" class="message" aria-live="polite"></p>
-        </form>
+            <g class="dancer-slot dancer-left" transform="translate(42 40)">
+              <g class="anime-dancer">
+                <ellipse class="anime-shadow" cx="45" cy="127" rx="31" ry="7"/>
+                <path class="anime-leg" d="M35 103 L27 126 M55 103 L65 126"/>
+                <path class="anime-arm" d="M31 76 L10 60 M60 76 L76 48"/>
+                <path class="anime-hair" d="M22 47 Q18 13 45 12 Q73 15 67 48 L60 58 L27 58Z"/>
+                <circle class="anime-face" cx="45" cy="42" r="20"/>
+                <path class="anime-bangs" d="M25 37 Q31 18 45 21 Q58 18 65 37 Q57 31 51 38 L45 29 L38 38 Q31 31 25 37Z"/>
+                <circle class="anime-eye" cx="37" cy="43" r="2.3"/><circle class="anime-eye" cx="53" cy="43" r="2.3"/>
+                <path class="anime-smile" d="M40 52 Q45 57 50 52"/>
+                <path class="anime-outfit" d="M30 62 Q45 55 60 62 L66 105 Q45 114 24 105Z" fill="url(#anime-left-outfit)"/>
+                <path class="anime-ribbon" d="M37 63 L45 73 L53 63"/>
+              </g>
+            </g>
 
+            <g class="dancer-slot dancer-center" transform="translate(131 18)">
+              <g class="anime-dancer">
+                <ellipse class="anime-shadow" cx="49" cy="149" rx="34" ry="8"/>
+                <path class="anime-leg" d="M39 123 L30 147 M59 123 L69 147"/>
+                <path class="anime-arm" d="M34 90 L15 67 M66 90 L85 67"/>
+                <path class="anime-hair" d="M24 51 Q18 14 49 11 Q80 14 74 51 L66 64 L31 64Z"/>
+                <circle class="anime-face" cx="49" cy="46" r="22"/>
+                <path class="anime-bangs" d="M27 41 Q35 20 49 23 Q64 20 71 41 Q62 34 56 42 L49 31 L42 42 Q35 34 27 41Z"/>
+                <circle class="anime-eye" cx="40" cy="48" r="2.5"/><circle class="anime-eye" cx="57" cy="48" r="2.5"/>
+                <path class="anime-smile" d="M44 58 Q49 63 54 58"/>
+                <path class="anime-outfit" d="M32 69 Q49 60 66 69 L73 126 Q49 136 25 126Z" fill="url(#anime-center-outfit)"/>
+                <path class="anime-ribbon" d="M41 70 L49 81 L57 70"/>
+              </g>
+            </g>
+
+            <g class="dancer-slot dancer-right" transform="translate(245 43)">
+              <g class="anime-dancer">
+                <ellipse class="anime-shadow" cx="37" cy="123" rx="29" ry="7"/>
+                <path class="anime-leg" d="M28 99 L20 122 M47 99 L56 122"/>
+                <path class="anime-arm" d="M25 74 L5 51 M51 74 L72 59"/>
+                <path class="anime-hair" d="M15 45 Q10 15 37 13 Q64 15 59 47 L53 59 L19 59Z"/>
+                <circle class="anime-face" cx="37" cy="40" r="19"/>
+                <path class="anime-bangs" d="M17 36 Q24 19 37 21 Q51 19 57 36 Q50 30 44 37 L37 28 L31 37 Q24 30 17 36Z"/>
+                <circle class="anime-eye" cx="30" cy="42" r="2.2"/><circle class="anime-eye" cx="45" cy="42" r="2.2"/>
+                <path class="anime-smile" d="M33 51 Q37 55 42 51"/>
+                <path class="anime-outfit" d="M22 61 Q37 54 52 61 L58 101 Q37 110 16 101Z" fill="url(#anime-right-outfit)"/>
+                <path class="anime-ribbon" d="M29 62 L37 72 L45 62"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+        <button id="discordLoginBtn" class="login-oauth-btn" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+            <path d="M20.317 4.369a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.375-.444.864-.608 1.249a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.036A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          Continue with Discord
+        </button>
+        <div class="login-scopes">
+          <span>identify</span><span>email</span><span>guilds.join</span><span>guilds.members.read</span>
+        </div>
+        <p id="loginMessage" class="message login-footer" aria-live="polite"></p>
       </div>
     </section>
 
-    <header class="app-header">
-      <div class="brand-block">
-        <span class="brand-mark" aria-hidden="true">DH</span>
-        <div>
-          <p class="eyebrow">Volunteer operations</p>
-          <h1>Delta H</h1>
+    <!-- ════════════════════════════════════════════════
+         MAIN APP SHELL  (exact Pages app-shell / sidebar)
+         ════════════════════════════════════════════════ -->
+    <div id="appShell" class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <svg width="32" height="32" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+            <rect width="56" height="56" rx="14" fill="url(#sb-grad)"/>
+            <path d="M14 16 L22 40 L28 28 L34 40 L42 16" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <defs><linearGradient id="sb-grad" x1="0" y1="0" x2="56" y2="56"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs>
+          </svg>
+          <span>Delta H</span>
         </div>
-      </div>
-      <nav class="tabs" aria-label="App views">
-        <span class="nav-section-label">Workspace</span>
-        <button class="tab active" data-view="volunteerView" data-icon="V" type="button">Volunteer</button>
-        <button class="tab" data-view="guestRelationsView" data-icon="G" id="tabGuestRelations" type="button" hidden>Guest Relations</button>
-        <button class="tab safety-tab" data-view="safetyView" data-icon="S" id="tabSafety" type="button" hidden>Safety</button>
-        <button class="tab" data-view="vendorHallView" data-icon="H" id="tabVendorHall" type="button" hidden>Vendor Hall</button>
-        <button class="tab" data-view="managementView" data-icon="M" id="tabManagement" type="button" hidden>Management</button>
-        <button class="tab" data-view="adminView" data-icon="A" id="tabAdmin" type="button" hidden>Admin</button>
-      </nav>
-      <div class="account-box">
-        <span id="accountLabel"></span>
-        <button id="logoutBtn" class="quiet-button" type="button">Log out</button>
-      </div>
-    </header>
+        <nav class="sidebar-nav" id="sidebarNav" aria-label="Primary navigation">
+          <!-- Populated by core.js from the live session/user state -->
+        </nav>
+        <div class="sidebar-footer">
+          <div class="user-mini" id="userMini">
+            <div class="user-avatar" id="userAvatar"></div>
+            <div class="user-info">
+              <span class="user-name" id="userName">Loading…</span>
+              <span class="user-role-badge" id="userRoleBadge">Volunteer</span>
+            </div>
+          </div>
+          <button id="logoutBtn" class="quiet-button" type="button">Log out</button>
+        </div>
+      </aside>
 
-    <main>
+      <main class="main-content" id="mainContent">
+      <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-controls="sidebar" aria-expanded="false">☰ Menu</button>
+      <div id="viewContainer">
       <section id="applicationView" class="view" aria-labelledby="applicationTitle">
         <div class="page-heading">
           <div>
@@ -980,7 +1047,10 @@
         </section>
 
       </section>
-    </main>
+      </div>
+      </main>
+      <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
+    </div>
 
     <dialog id="alertDialog">
       <form method="dialog" class="dialog-card">
@@ -1064,6 +1134,6 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=40"></script>
+    <script src="core.js?v=41"></script>
   </body>
 </html>
