@@ -20,6 +20,16 @@ $database = (string)($config['database'] ?? '');
 $username = (string)($config['username'] ?? '');
 $password = (string)($config['password'] ?? '');
 $charset = (string)($config['charset'] ?? 'utf8mb4');
+$expectedDatabase = trim((string)($argv[1] ?? ''));
+
+if ($expectedDatabase === '') {
+    fwrite(STDERR, "Usage: php scripts/migrate.php EXPECTED_DATABASE\n");
+    exit(1);
+}
+if ($database === '' || !hash_equals($database, $expectedDatabase)) {
+    fwrite(STDERR, "Refusing migration: configured database does not match the explicit target.\n");
+    exit(1);
+}
 
 try {
     $pdo = new PDO(

@@ -70,6 +70,16 @@ class ReleaseSecurityTests(unittest.TestCase):
         self.assertIn("PHP_SAPI !== 'cli'", migration_source)
         self.assertIn("ensureSchema($pdo);", migration_source)
 
+    def test_migration_requires_explicit_database_target(self):
+        migration_source = (ROOT / "scripts/migrate.php").read_text(encoding="utf-8")
+        guard_position = migration_source.find("Refusing migration: configured database")
+        mutation_position = migration_source.find("ensureSchema($pdo);")
+        self.assertNotEqual(-1, guard_position)
+        self.assertNotEqual(-1, mutation_position)
+        self.assertLess(guard_position, mutation_position)
+        self.assertIn("$argv[1]", migration_source)
+        self.assertIn("hash_equals($database, $expectedDatabase)", migration_source)
+
     def test_cron_actions_require_post_and_csrf_or_cron_secret(self):
         api_source = (ROOT / "api/api.php").read_text(encoding="utf-8")
         self.assertNotIn("array_merge($getActions, $cronActions)", api_source)
