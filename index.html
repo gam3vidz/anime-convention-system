@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=40" />
+    <link rel="stylesheet" href="styles.css?v=41" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -72,70 +72,7 @@
         <h1 id="authTitle">Delta H Scheduling</h1>
         <p class="login-subtitle">Volunteer Scheduling Portal for <strong>Delta H</strong></p>
         <div class="anime-dance-stage" aria-hidden="true">
-          <svg viewBox="0 0 360 190" role="presentation" focusable="false">
-            <defs>
-              <linearGradient id="anime-stage" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#312e81"/>
-                <stop offset="1" stop-color="#7c3aed"/>
-              </linearGradient>
-              <linearGradient id="anime-left-outfit" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#f9a8d4"/><stop offset="1" stop-color="#db2777"/>
-              </linearGradient>
-              <linearGradient id="anime-center-outfit" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#7c3aed"/>
-              </linearGradient>
-              <linearGradient id="anime-right-outfit" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#0891b2"/>
-              </linearGradient>
-            </defs>
-            <path class="anime-stage-floor" d="M22 151 Q180 112 338 151 L323 174 Q180 150 37 174Z" fill="url(#anime-stage)"/>
-            <circle class="anime-spark sparkle-one" cx="52" cy="38" r="4"/><circle class="anime-spark sparkle-two" cx="305" cy="48" r="3"/><circle class="anime-spark sparkle-three" cx="180" cy="17" r="3"/>
-
-            <g class="dancer-slot dancer-left" transform="translate(42 40)">
-              <g class="anime-dancer">
-                <ellipse class="anime-shadow" cx="45" cy="127" rx="31" ry="7"/>
-                <path class="anime-leg" d="M35 103 L27 126 M55 103 L65 126"/>
-                <path class="anime-arm" d="M31 76 L10 60 M60 76 L76 48"/>
-                <path class="anime-hair" d="M22 47 Q18 13 45 12 Q73 15 67 48 L60 58 L27 58Z"/>
-                <circle class="anime-face" cx="45" cy="42" r="20"/>
-                <path class="anime-bangs" d="M25 37 Q31 18 45 21 Q58 18 65 37 Q57 31 51 38 L45 29 L38 38 Q31 31 25 37Z"/>
-                <circle class="anime-eye" cx="37" cy="43" r="2.3"/><circle class="anime-eye" cx="53" cy="43" r="2.3"/>
-                <path class="anime-smile" d="M40 52 Q45 57 50 52"/>
-                <path class="anime-outfit" d="M30 62 Q45 55 60 62 L66 105 Q45 114 24 105Z" fill="url(#anime-left-outfit)"/>
-                <path class="anime-ribbon" d="M37 63 L45 73 L53 63"/>
-              </g>
-            </g>
-
-            <g class="dancer-slot dancer-center" transform="translate(131 18)">
-              <g class="anime-dancer">
-                <ellipse class="anime-shadow" cx="49" cy="149" rx="34" ry="8"/>
-                <path class="anime-leg" d="M39 123 L30 147 M59 123 L69 147"/>
-                <path class="anime-arm" d="M34 90 L15 67 M66 90 L85 67"/>
-                <path class="anime-hair" d="M24 51 Q18 14 49 11 Q80 14 74 51 L66 64 L31 64Z"/>
-                <circle class="anime-face" cx="49" cy="46" r="22"/>
-                <path class="anime-bangs" d="M27 41 Q35 20 49 23 Q64 20 71 41 Q62 34 56 42 L49 31 L42 42 Q35 34 27 41Z"/>
-                <circle class="anime-eye" cx="40" cy="48" r="2.5"/><circle class="anime-eye" cx="57" cy="48" r="2.5"/>
-                <path class="anime-smile" d="M44 58 Q49 63 54 58"/>
-                <path class="anime-outfit" d="M32 69 Q49 60 66 69 L73 126 Q49 136 25 126Z" fill="url(#anime-center-outfit)"/>
-                <path class="anime-ribbon" d="M41 70 L49 81 L57 70"/>
-              </g>
-            </g>
-
-            <g class="dancer-slot dancer-right" transform="translate(245 43)">
-              <g class="anime-dancer">
-                <ellipse class="anime-shadow" cx="37" cy="123" rx="29" ry="7"/>
-                <path class="anime-leg" d="M28 99 L20 122 M47 99 L56 122"/>
-                <path class="anime-arm" d="M25 74 L5 51 M51 74 L72 59"/>
-                <path class="anime-hair" d="M15 45 Q10 15 37 13 Q64 15 59 47 L53 59 L19 59Z"/>
-                <circle class="anime-face" cx="37" cy="40" r="19"/>
-                <path class="anime-bangs" d="M17 36 Q24 19 37 21 Q51 19 57 36 Q50 30 44 37 L37 28 L31 37 Q24 30 17 36Z"/>
-                <circle class="anime-eye" cx="30" cy="42" r="2.2"/><circle class="anime-eye" cx="45" cy="42" r="2.2"/>
-                <path class="anime-smile" d="M33 51 Q37 55 42 51"/>
-                <path class="anime-outfit" d="M22 61 Q37 54 52 61 L58 101 Q37 110 16 101Z" fill="url(#anime-right-outfit)"/>
-                <path class="anime-ribbon" d="M29 62 L37 72 L45 62"/>
-              </g>
-            </g>
-          </svg>
+          <img class="anime-dance-gif" src="assets/anime-dancer.gif" alt="" />
         </div>
         <button id="discordLoginBtn" class="login-oauth-btn" type="button">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">

@@ -131,7 +131,7 @@ class ManagementPortalTests(unittest.TestCase):
             ".volunteer-profile-access-state.is-blacklisted",
         ):
             self.assertIn(marker, self.css)
-        self.assertIn("styles.css?v=40", self.html)
+        self.assertIn("styles.css?v=41", self.html)
         self.assertIn("core.js?v=41", self.html)
         self.assertIn("grid-template-columns: repeat(12, minmax(48px, 1fr));", self.css)
         self.assertIn("grid-template-columns: repeat(4, minmax(60px, 1fr));", self.css)

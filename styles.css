@@ -3314,7 +3314,7 @@ a:focus-visible {
     radial-gradient(circle at 50% 10%, rgba(196, 181, 253, .2), transparent 42%),
     linear-gradient(145deg, rgba(49, 46, 129, .26), rgba(15, 17, 23, .18));
 }
-.anime-dance-stage svg { display: block; width: 100%; height: auto; }
+.anime-dance-gif { display: block; width: 100%; height: auto; border-radius: calc(var(--r-lg) - 2px); }
 .anime-stage-floor { filter: drop-shadow(0 10px 16px rgba(124, 58, 237, .28)); }
 .anime-shadow { fill: rgba(0, 0, 0, .28); }
 .anime-leg,
@@ -3362,6 +3362,8 @@ a:focus-visible {
   .anime-dance-stage { margin-bottom: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .anime-dance-gif,
   .anime-dancer,
   .anime-spark { animation: none !important; }
+  .anime-dance-gif { display: none; }
 }

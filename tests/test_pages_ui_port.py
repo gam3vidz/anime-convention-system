@@ -24,6 +24,7 @@ class PagesUiPortTests(unittest.TestCase):
         cls.css = (ROOT / "styles.css").read_text(encoding="utf-8")
         cls.js = (ROOT / "core.js").read_text(encoding="utf-8")
         cls.api = (ROOT / "api/api.php").read_text(encoding="utf-8")
+        cls.release_builder = (ROOT / "scripts/build-release.py").read_text(encoding="utf-8")
 
     # ── (a) exact Pages login card DOM ──────────────────────────────
     def test_login_card_uses_pages_dom(self):
@@ -47,11 +48,17 @@ class PagesUiPortTests(unittest.TestCase):
 
     def test_login_has_original_anime_dance_scene_without_rejected_copy(self):
         self.assertIn('class="anime-dance-stage"', self.html)
-        self.assertGreaterEqual(self.html.count('class="anime-dancer"'), 3)
+        self.assertIn('class="anime-dance-gif"', self.html)
+        self.assertNotIn('class="anime-dancer"', self.html)
         self.assertIn('aria-hidden="true"', self.html)
         self.assertIn('@media (prefers-reduced-motion: reduce)', self.css)
         for rejected in ('Your convention command center', 'Role checked', 'Schedule ready'):
             self.assertNotIn(rejected, self.html)
+
+    def test_login_uses_local_animated_gif_and_release_allows_it(self):
+        self.assertIn('src="assets/anime-dancer.gif"', self.html)
+        self.assertTrue((ROOT / 'assets' / 'anime-dancer.gif').is_file())
+        self.assertIn('assets/anime-dancer.gif', self.release_builder)
 
     # ── (a) exact Pages app-shell / sidebar DOM ─────────────────────
     def test_app_shell_uses_pages_dom(self):

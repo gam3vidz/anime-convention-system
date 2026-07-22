@@ -14,6 +14,7 @@ RUNTIME_FILES = [
     "styles.css",
     "core.js",
     "CREDITS.txt",
+    "assets/anime-dancer.gif",
     "delta-h-shift-import-template.xlsx",
     "api/.htaccess",
     "api/api.php",
