@@ -18,6 +18,8 @@ return [
     'discord_coordinator_role_id' => 'CHANGE_ME',
     'discord_guest_relations_role_id' => 'CHANGE_ME',
     'discord_safety_role_id' => 'CHANGE_ME',
+    // Optional: grants access to the Vendor Hall portal only. Leave blank to deny non-admins (fail closed).
+    'discord_vendor_hall_role_id' => '',
 
     'app_timezone' => 'America/Chicago',
     // Generate with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"

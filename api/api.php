@@ -103,7 +103,8 @@ function discordConfig(array $config): array {
         'volunteerRoleId' => trim((string)($config['discord_volunteer_role_id'] ?? '')),
         'coordinatorRoleId' => trim((string)($config['discord_coordinator_role_id'] ?? '')),
         'guestRelationsRoleId' => trim((string)($config['discord_guest_relations_role_id'] ?? '')),
-        'safetyRoleId' => trim((string)($config['discord_safety_role_id'] ?? ''))
+        'safetyRoleId' => trim((string)($config['discord_safety_role_id'] ?? '')),
+        'vendorHallRoleId' => trim((string)($config['discord_vendor_hall_role_id'] ?? ''))
     ];
 }
 
@@ -220,6 +221,80 @@ function requireSafety(PDO $pdo, array $config): array {
         fail("Safety access required.", 403);
     }
     return $user;
+}
+
+function vendorHallSpotCodes(): array {
+    $codes = [];
+    foreach (['A', 'B', 'C', 'D'] as $section) {
+        for ($n = 1; $n <= 12; $n++) {
+            $codes[] = $section . $n;
+        }
+    }
+    return $codes;
+}
+
+function isValidVendorHallSpot(string $spotCode): bool {
+    return in_array($spotCode, vendorHallSpotCodes(), true);
+}
+
+function isVendorHallRow(array $user, array $config): bool {
+    if (($user['status'] ?? '') !== 'approved') return false;
+    if ((int)($user['blacklisted'] ?? 0) === 1) return false;
+    if (isFullAdminRow($user)) return true;
+    $roleId = trim((string)($config['discord_vendor_hall_role_id'] ?? ''));
+    if ($roleId === '') return false; // Fail closed: no configured role means no non-admin access.
+    return hasDiscordRole(userDiscordRoles($user), $roleId);
+}
+
+function requireVendorHall(PDO $pdo, array $config): array {
+    $currentId = (int)($_SESSION['user_id'] ?? 0);
+    if (!$currentId) fail("Please log in first.", 401);
+    $user = getUserRow($pdo, $currentId);
+    if (!$user || !isVendorHallRow($user, $config)) {
+        fail("Vendor Hall access required.", 403);
+    }
+    return $user;
+}
+
+function vendorHallAssignments(PDO $pdo): array {
+    $rows = $pdo->query("SELECT a.spot_code, a.vendor_name, a.notes, a.updated_by, a.updated_at,
+            u.name AS updated_by_name
+        FROM vendor_hall_assignments a
+        LEFT JOIN users u ON u.id = a.updated_by
+        ORDER BY a.spot_code")->fetchAll(PDO::FETCH_ASSOC);
+    $assignments = [];
+    foreach ($rows as $row) {
+        $assignments[] = [
+            'spotCode' => (string)$row['spot_code'],
+            'vendorName' => (string)$row['vendor_name'],
+            'notes' => (string)($row['notes'] ?? ''),
+            'updatedBy' => $row['updated_by'] !== null ? (int)$row['updated_by'] : null,
+            'updatedByName' => (string)($row['updated_by_name'] ?? ''),
+            'updatedAt' => (string)($row['updated_at'] ?? '')
+        ];
+    }
+    return $assignments;
+}
+
+function saveVendorHallAssignment(PDO $pdo, array $user, array $input): string {
+    $spot = strtoupper(trim((string)($input['spotCode'] ?? '')));
+    if (!isValidVendorHallSpot($spot)) fail("Choose a valid Vendor Hall position.");
+    $vendorName = trim((string)($input['vendorName'] ?? ''));
+    if ($vendorName === '') fail("Enter a vendor name before saving.");
+    $vendorName = cleanManagementText($vendorName, 160);
+    $notes = cleanManagementText($input['notes'] ?? '', 2000);
+    $stmt = $pdo->prepare("INSERT INTO vendor_hall_assignments (spot_code, vendor_name, notes, updated_by)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE vendor_name = VALUES(vendor_name), notes = VALUES(notes), updated_by = VALUES(updated_by)");
+    $stmt->execute([$spot, $vendorName, $notes, (int)$user['id']]);
+    return $spot;
+}
+
+function clearVendorHallAssignment(PDO $pdo, array $input): string {
+    $spot = strtoupper(trim((string)($input['spotCode'] ?? '')));
+    if (!isValidVendorHallSpot($spot)) fail("Choose a valid Vendor Hall position.");
+    $pdo->prepare("DELETE FROM vendor_hall_assignments WHERE spot_code = ?")->execute([$spot]);
+    return $spot;
 }
 
 function enforceDiscordRoles(array $discord, array $roles, array $user): void {
@@ -380,6 +455,7 @@ function getAppState(PDO $pdo, ?int $userId): array {
         $u['passwordResetRequestedAt'] = $u['password_reset_requested_at'] ?? "";
         $u['canGuestRelations'] = isGuestRelationsRow($u, $GLOBALS['config'] ?? []);
         $u['canSafety'] = isSafetyRow($u, $GLOBALS['config'] ?? []);
+        $u['canVendorHall'] = isVendorHallRow($u, $GLOBALS['config'] ?? []);
 
         if ($userId !== null && $uid === $userId) {
             $currentUser = $u;
@@ -534,6 +610,11 @@ function getAppState(PDO $pdo, ?int $userId): array {
         $alertDeliveries = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    $vendorHallAssignments = [];
+    if ($currentUser && isVendorHallRow($currentUser, $GLOBALS['config'] ?? [])) {
+        $vendorHallAssignments = vendorHallAssignments($pdo);
+    }
+
     return [
         'csrfToken' => (string)($_SESSION['csrf_token'] ?? ''),
         'user' => $currentUser,
@@ -545,7 +626,8 @@ function getAppState(PDO $pdo, ?int $userId): array {
         'pickupStaff' => $pickupStaff,
         'incidents' => $incidents,
         'alertRules' => $alertRules,
-        'alertDeliveries' => $alertDeliveries
+        'alertDeliveries' => $alertDeliveries,
+        'vendorHallAssignments' => $vendorHallAssignments
     ];
 }
 
@@ -788,7 +870,8 @@ function lookupFlightStatus(array $config, string $flightNumber, string $flightD
             'raw_json' => json_encode($flight)
         ];
     } catch (Throwable $e) {
-        return ['flight_status' => 'Lookup failed: ' . $e->getMessage()];
+        error_log('Flight status lookup failed: ' . $e->getMessage());
+        return ['flight_status' => 'Flight status lookup is temporarily unavailable.'];
     }
 }
 
@@ -933,6 +1016,9 @@ function updateGuestFlightAssignee(PDO $pdo, array $config, int $flightId, int $
 function requireManageableVolunteer(PDO $pdo, array $manager, int $userId): array {
     $target = getUserRow($pdo, $userId);
     if (!$target) fail("Volunteer not found.", 404);
+    if (isFullAdminRow($target) && !isFullAdminRow($manager)) {
+        fail("Only Admin can manage another Admin account.", 403);
+    }
     $targetDept = (string)($target['department'] ?: ($target['applied_department'] ?? ''));
     if (!canManageDepartment($manager, $targetDept)) {
         fail("You can only manage volunteer profiles in your department.", 403);
@@ -1607,6 +1693,20 @@ if ($requestMethod === 'POST'
     requireCsrfToken();
 }
 
+// Centrally revoke blacklisted sessions before any protected routing or state exposure.
+// A blacklisted account is force-denied on its very next request even with a live PHP session.
+$blacklistExemptActions = ['discord_login', 'discord_callback', 'discord_interactions', 'logout'];
+$sessionUserId = (int)($_SESSION['user_id'] ?? 0);
+if ($sessionUserId > 0 && !in_array($action, $blacklistExemptActions, true) && !$validCronSecret) {
+    $sessionUser = getUserRow($pdo, $sessionUserId);
+    if ($sessionUser && (int)($sessionUser['blacklisted'] ?? 0) === 1) {
+        logAction($pdo, $sessionUser, 'blacklisted_session_revoked', 'Denied and destroyed a blacklisted account session.');
+        $_SESSION = [];
+        session_destroy();
+        fail('Access denied: this account has been blocked.', 403);
+    }
+}
+
 try {
     switch ($action) {
         case 'discord_interactions':
@@ -1681,11 +1781,10 @@ try {
                 $discordEmail = 'discord-' . $discordId . '@discord.local';
             }
 
-            $autoJoinWarning = '';
             try {
                 addDiscordGuildMember($discord, $discordId, $accessToken);
             } catch (Throwable $e) {
-                $autoJoinWarning = 'Auto-join failed: ' . $e->getMessage();
+                error_log('Discord auto-join failed: ' . $e->getMessage());
             }
 
             $discordRoles = [];
@@ -1693,9 +1792,8 @@ try {
                 try {
                     $discordRoles = getDiscordMemberRoles($discord, $discordId);
                 } catch (Throwable $e) {
-                    $message = 'Could not verify your Discord server roles: ' . $e->getMessage();
-                    if ($autoJoinWarning !== '') $message .= ' ' . $autoJoinWarning;
-                    redirectToApp('?discord_error=' . rawurlencode($message));
+                    error_log('Discord role lookup failed: ' . $e->getMessage());
+                    redirectToApp('?discord_error=' . rawurlencode('Discord role lookup is temporarily unavailable. Please try again in a few minutes.'));
                 }
             }
 
@@ -1827,6 +1925,36 @@ try {
             $target = addVolunteerManagementNote($pdo, $manager, $input);
             logAction($pdo, $manager, 'add_volunteer_management_note', 'Added an internal management note for ' . (string)($target['name'] ?? 'volunteer') . '.');
             out(getAppState($pdo, (int)$manager['id']));
+            break;
+
+        case 'set_user_blacklist':
+            $manager = requireManager($pdo);
+            $targetId = (int)($input['userId'] ?? 0);
+            $target = requireManageableVolunteer($pdo, $manager, $targetId);
+            $blacklist = filter_var($input['blacklisted'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            if ($blacklist === 1 && $targetId === (int)$manager['id']) {
+                fail("You cannot blacklist your own account.", 400);
+            }
+            $pdo->prepare("UPDATE users SET blacklisted = ? WHERE id = ?")->execute([$blacklist, $targetId]);
+            $blacklistAction = $blacklist ? 'user_blacklisted' : 'user_restored';
+            $blacklistDetail = ($blacklist ? 'Blacklisted access for ' : 'Restored access for ')
+                . (string)($target['name'] ?? 'volunteer') . '.';
+            logAction($pdo, $manager, $blacklistAction, $blacklistDetail);
+            out(getAppState($pdo, (int)$manager['id']));
+            break;
+
+        case 'save_vendor_hall_assignment':
+            $vendorUser = requireVendorHall($pdo, $config);
+            $vendorSpot = saveVendorHallAssignment($pdo, $vendorUser, $input);
+            logAction($pdo, $vendorUser, 'vendor_hall_save', 'Saved the Vendor Hall assignment for position ' . $vendorSpot . '.');
+            out(getAppState($pdo, (int)$vendorUser['id']));
+            break;
+
+        case 'clear_vendor_hall_assignment':
+            $vendorUser = requireVendorHall($pdo, $config);
+            $vendorSpot = clearVendorHallAssignment($pdo, $input);
+            logAction($pdo, $vendorUser, 'vendor_hall_clear', 'Cleared the Vendor Hall assignment for position ' . $vendorSpot . '.');
+            out(getAppState($pdo, (int)$vendorUser['id']));
             break;
 
         case 'save_application':

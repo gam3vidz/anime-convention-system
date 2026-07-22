@@ -35,6 +35,7 @@ $expectedTables = [
     'user_availability',
     'user_shifts',
     'users',
+    'vendor_hall_assignments',
     'volunteer_management_notes',
     'volunteer_management_profiles',
 ];
@@ -73,4 +74,18 @@ if ((int)$pdo->query('SELECT COUNT(*) FROM shifts')->fetchColumn() !== 0) {
     exit(1);
 }
 
-fwrite(STDOUT, "Fresh MariaDB schema integration test passed (16 tables, idempotent).\n");
+$vendorHallColumns = $pdo->query('SHOW COLUMNS FROM vendor_hall_assignments')->fetchAll(PDO::FETCH_COLUMN);
+$requiredVendorHallColumns = ['spot_code', 'vendor_name', 'notes', 'updated_by', 'created_at', 'updated_at'];
+foreach ($requiredVendorHallColumns as $column) {
+    if (!in_array($column, $vendorHallColumns, true)) {
+        fwrite(STDERR, "Missing vendor_hall_assignments.{$column}\n");
+        exit(1);
+    }
+}
+
+if ((int)$pdo->query('SELECT COUNT(*) FROM vendor_hall_assignments')->fetchColumn() !== 0) {
+    fwrite(STDERR, "Fresh schema unexpectedly contains seeded vendor assignments.\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "Fresh MariaDB schema integration test passed (17 tables, idempotent).\n");

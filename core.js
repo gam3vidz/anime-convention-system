@@ -54,7 +54,11 @@ const SHIFT_TEMPLATES = [
   { name: "Info desk", title: "Info desk coverage", day: "Friday", time: "10:00 AM - 2:00 PM", hours: 4, capacity: 2, note: "Guest-facing desk" }
 ];
 
-let shifts = [], users = [], hotelRooms = [], systemLogs = [], guestFlights = [], pickupStaff = [], incidents = [], alertRules = [], alertDeliveries = [], currentUser = null, selectedShiftIds = new Set(), csrfToken = "";
+let shifts = [], users = [], hotelRooms = [], systemLogs = [], guestFlights = [], pickupStaff = [], incidents = [], alertRules = [], alertDeliveries = [], vendorHallAssignments = [], currentUser = null, selectedShiftIds = new Set(), selectedVendorHallSpot = null, csrfToken = "";
+
+const VENDOR_HALL_SPOTS = ["A", "B", "C", "D"].flatMap(section =>
+  Array.from({ length: 12 }, (_, index) => `${section}${index + 1}`)
+);
 let selectedAvailabilityDay = "Thursday";
 let latestRecommendations = [];
 let focusedManagedShiftId = null;
@@ -101,6 +105,7 @@ function applyState(data) {
   incidents = data.incidents || [];
   alertRules = data.alertRules || [];
   alertDeliveries = data.alertDeliveries || [];
+  vendorHallAssignments = data.vendorHallAssignments || [];
   if (currentUser) {
     currentUser = normalizeUser(currentUser);
     const hydrated = users.find(u => String(u.id) === String(currentUser.id));
@@ -272,6 +277,13 @@ function bindEvents() {
   on("#closeVolunteerProfileBtn", "click", closeVolunteerProfile);
   on("#volunteerProfileForm", "submit", saveVolunteerManagementProfile);
   on("#volunteerProfileNoteForm", "submit", addVolunteerManagementNote);
+  on("#volunteerProfileBlacklistToggle", "click", toggleVolunteerBlacklist);
+  on("#vendorHallForm", "submit", saveVendorHallAssignment);
+  on("#vendorHallClearBtn", "click", clearVendorHallAssignment);
+  on("#vendorHallMap", "click", (event) => {
+    const spot = event.target.closest("[data-vendor-spot]");
+    if (spot) selectVendorHallSpot(spot.dataset.vendorSpot);
+  });
   on("#newIncidentBtn", "click", startNewIncident);
   on("#clearIncidentBtn", "click", startNewIncident);
   on("#incidentForm", "submit", saveSafetyIncident);
@@ -325,10 +337,12 @@ function updateAuthView() {
     if ($("#accountLabel")) $("#accountLabel").textContent = `${currentUser.name} (${accountRank})`;
     if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = !currentUser.canGuestRelations;
     if ($("#tabSafety")) $("#tabSafety").hidden = !currentUser.canSafety;
+    if ($("#tabVendorHall")) $("#tabVendorHall").hidden = !currentUser.canVendorHall;
 
     if (needsApplication(currentUser)) {
       if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = true;
       if ($("#tabSafety")) $("#tabSafety").hidden = true;
+      if ($("#tabVendorHall")) $("#tabVendorHall").hidden = true;
       if ($("#tabManagement")) $("#tabManagement").hidden = true;
       if ($("#tabAdmin")) $("#tabAdmin").hidden = true;
       $$(".tab").forEach(tab => tab.hidden = true);
@@ -337,6 +351,7 @@ function updateAuthView() {
       $$(".tab").forEach(tab => tab.hidden = false);
       if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = !currentUser.canGuestRelations;
       if ($("#tabSafety")) $("#tabSafety").hidden = !currentUser.canSafety;
+      if ($("#tabVendorHall")) $("#tabVendorHall").hidden = !currentUser.canVendorHall;
       if ($("#tabManagement")) $("#tabManagement").hidden = false;
       if ($("#tabAdmin")) $("#tabAdmin").hidden = !isFullAdmin(currentUser);
       switchView("managementView");
@@ -344,9 +359,10 @@ function updateAuthView() {
       $$(".tab").forEach(tab => tab.hidden = false);
       if ($("#tabGuestRelations")) $("#tabGuestRelations").hidden = !currentUser.canGuestRelations;
       if ($("#tabSafety")) $("#tabSafety").hidden = !currentUser.canSafety;
+      if ($("#tabVendorHall")) $("#tabVendorHall").hidden = !currentUser.canVendorHall;
       if ($("#tabManagement")) $("#tabManagement").hidden = true;
       if ($("#tabAdmin")) $("#tabAdmin").hidden = true;
-      switchView(currentUser.canSafety ? "safetyView" : currentUser.canGuestRelations ? "guestRelationsView" : "volunteerView");
+      switchView(currentUser.canSafety ? "safetyView" : currentUser.canGuestRelations ? "guestRelationsView" : currentUser.canVendorHall ? "vendorHallView" : "volunteerView");
     }
   }
 }
@@ -606,6 +622,7 @@ function renderAll() {
   renderSystemLogs();
   renderGuestFlights();
   renderSafety();
+  renderVendorHall();
   renderShiftAlerts();
   renderAdmin();
   renderAdminAvailability();
@@ -1052,6 +1069,20 @@ function renderVolunteerManagementProfile() {
       ? `Last updated ${formatIncidentDate(profile.updated_at)}${profile.updated_by_name ? ` by ${profile.updated_by_name}` : ""}.`
       : "This profile is visible only to authorized management.";
   }
+  const blacklistState = $("#volunteerProfileBlacklistState");
+  const blacklistToggle = $("#volunteerProfileBlacklistToggle");
+  const isBlacklisted = Boolean(user.blacklisted);
+  if (blacklistState) {
+    blacklistState.textContent = isBlacklisted
+      ? "Blacklisted — this account is denied on its next request."
+      : "Active — this account may sign in and use the portal.";
+    blacklistState.classList.toggle("is-blacklisted", isBlacklisted);
+  }
+  if (blacklistToggle) {
+    blacklistToggle.textContent = isBlacklisted ? "Restore access" : "Blacklist access";
+    blacklistToggle.classList.toggle("primary-button", isBlacklisted);
+    blacklistToggle.classList.toggle("danger-button", !isBlacklisted);
+  }
   const list = $("#volunteerProfileNoteList");
   if (list) {
     list.innerHTML = notes.length ? notes.map(note => `
@@ -1104,6 +1135,129 @@ async function addVolunteerManagementNote(event) {
     if ($("#volunteerProfileMessage")) $("#volunteerProfileMessage").textContent = "Dated management note added.";
   } catch (err) {
     if ($("#volunteerProfileMessage")) $("#volunteerProfileMessage").textContent = err.message;
+  }
+}
+
+async function toggleVolunteerBlacklist() {
+  const user = selectedVolunteerProfileUser();
+  if (!user) return;
+  const willBlacklist = !user.blacklisted;
+  if (willBlacklist && !confirm(`Blacklist ${user.name || "this volunteer"}? Their active session is revoked immediately and they lose all portal access until restored.`)) {
+    return;
+  }
+  try {
+    const data = await apiRequest("set_user_blacklist", { userId: user.id, blacklisted: willBlacklist });
+    applyState(data);
+    renderVolunteerManagementProfile();
+    if ($("#volunteerProfileMessage")) {
+      $("#volunteerProfileMessage").textContent = willBlacklist ? "Access blacklisted." : "Access restored.";
+    }
+  } catch (err) {
+    if ($("#volunteerProfileMessage")) $("#volunteerProfileMessage").textContent = err.message;
+    showDialog([err.message]);
+  }
+}
+
+function vendorHallAssignmentMap() {
+  const map = {};
+  vendorHallAssignments.forEach(assignment => {
+    if (assignment && assignment.spotCode) map[assignment.spotCode] = assignment;
+  });
+  return map;
+}
+
+function renderVendorHall() {
+  const grid = $("#vendorHallMap");
+  if (!grid || !currentUser?.canVendorHall) return;
+  const assignments = vendorHallAssignmentMap();
+  const occupied = Object.keys(assignments).length;
+  if ($("#vendorHallSummary")) {
+    $("#vendorHallSummary").textContent = `${occupied} occupied / ${VENDOR_HALL_SPOTS.length - occupied} available of ${VENDOR_HALL_SPOTS.length} positions`;
+  }
+  grid.innerHTML = VENDOR_HALL_SPOTS.map(spot => {
+    const assignment = assignments[spot];
+    const isOccupied = Boolean(assignment);
+    const isSelected = selectedVendorHallSpot === spot;
+    const stateLabel = isOccupied ? "Occupied" : "Available";
+    const vendor = isOccupied ? escapeHtml(assignment.vendorName) : "Available";
+    return `
+      <button type="button" role="listitem"
+        class="vendor-hall-spot ${isOccupied ? "is-occupied" : "is-available"} ${isSelected ? "is-selected" : ""}"
+        data-vendor-spot="${escapeHtml(spot)}"
+        aria-pressed="${isSelected ? "true" : "false"}"
+        aria-label="Position ${escapeHtml(spot)}, ${stateLabel}${isOccupied ? `, ${vendor}` : ""}">
+        <span class="vendor-hall-spot-code">${escapeHtml(spot)}</span>
+        <span class="vendor-hall-spot-state">${isOccupied ? "●" : "○"} ${stateLabel}</span>
+        <span class="vendor-hall-spot-vendor">${vendor}</span>
+      </button>`;
+  }).join("");
+  renderVendorHallEditor();
+}
+
+function renderVendorHallEditor() {
+  const form = $("#vendorHallForm");
+  const title = $("#vendorHallEditorTitle");
+  if (!form || !currentUser?.canVendorHall) return;
+  if (!selectedVendorHallSpot) {
+    form.hidden = true;
+    if (title) title.textContent = "Select a position";
+    const clearBtn = $("#vendorHallClearBtn");
+    if (clearBtn) clearBtn.hidden = true;
+    return;
+  }
+  const assignment = vendorHallAssignmentMap()[selectedVendorHallSpot] || null;
+  form.hidden = false;
+  if (title) title.textContent = `Position ${selectedVendorHallSpot}`;
+  if ($("#vendorHallSpotCode")) $("#vendorHallSpotCode").value = selectedVendorHallSpot;
+  if ($("#vendorHallVendorName")) $("#vendorHallVendorName").value = assignment ? assignment.vendorName || "" : "";
+  if ($("#vendorHallNotes")) $("#vendorHallNotes").value = assignment ? assignment.notes || "" : "";
+  const clearBtn = $("#vendorHallClearBtn");
+  if (clearBtn) clearBtn.hidden = !assignment;
+  if ($("#vendorHallUpdatedMeta")) {
+    $("#vendorHallUpdatedMeta").textContent = assignment && assignment.updatedAt
+      ? `Last updated ${formatIncidentDate(assignment.updatedAt)}${assignment.updatedByName ? ` by ${assignment.updatedByName}` : ""}.`
+      : "No vendor assigned to this position yet.";
+  }
+}
+
+function selectVendorHallSpot(spot) {
+  if (!VENDOR_HALL_SPOTS.includes(spot)) return;
+  selectedVendorHallSpot = spot;
+  renderVendorHall();
+  const nameInput = $("#vendorHallVendorName");
+  if (nameInput) nameInput.focus();
+}
+
+async function saveVendorHallAssignment(event) {
+  event.preventDefault();
+  const message = $("#vendorHallMessage");
+  const payload = {
+    spotCode: $("#vendorHallSpotCode")?.value || selectedVendorHallSpot || "",
+    vendorName: $("#vendorHallVendorName")?.value || "",
+    notes: $("#vendorHallNotes")?.value || ""
+  };
+  try {
+    const data = await apiRequest("save_vendor_hall_assignment", payload);
+    applyState(data);
+    if (message) message.textContent = `Saved position ${payload.spotCode}.`;
+  } catch (err) {
+    if (message) message.textContent = err.message;
+    showDialog([err.message]);
+  }
+}
+
+async function clearVendorHallAssignment() {
+  const spot = $("#vendorHallSpotCode")?.value || selectedVendorHallSpot || "";
+  if (!spot) return;
+  if (!confirm(`Clear the assignment for position ${spot}?`)) return;
+  const message = $("#vendorHallMessage");
+  try {
+    const data = await apiRequest("clear_vendor_hall_assignment", { spotCode: spot });
+    applyState(data);
+    if (message) message.textContent = `Cleared position ${spot}.`;
+  } catch (err) {
+    if (message) message.textContent = err.message;
+    showDialog([err.message]);
   }
 }
 
@@ -2655,7 +2809,9 @@ function normalizeUser(user) {
     applicationSubmittedAt: user.applicationSubmittedAt ?? user.application_submitted_at ?? "",
     managementProfile: user.managementProfile || null,
     managementNotes: Array.isArray(user.managementNotes) ? user.managementNotes : [],
-    canGuestRelations: Boolean(user.canGuestRelations)
+    canGuestRelations: Boolean(user.canGuestRelations),
+    canSafety: Boolean(user.canSafety),
+    canVendorHall: Boolean(user.canVendorHall)
   };
 }
 

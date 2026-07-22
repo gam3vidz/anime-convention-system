@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=38" />
+    <link rel="stylesheet" href="styles.css?v=39" />
     <style>
       .auth-shell {
         place-items: center;
@@ -103,6 +103,7 @@
         <button class="tab active" data-view="volunteerView" data-icon="V" type="button">Volunteer</button>
         <button class="tab" data-view="guestRelationsView" data-icon="G" id="tabGuestRelations" type="button" hidden>Guest Relations</button>
         <button class="tab safety-tab" data-view="safetyView" data-icon="S" id="tabSafety" type="button" hidden>Safety</button>
+        <button class="tab" data-view="vendorHallView" data-icon="H" id="tabVendorHall" type="button" hidden>Vendor Hall</button>
         <button class="tab" data-view="managementView" data-icon="M" id="tabManagement" type="button" hidden>Management</button>
         <button class="tab" data-view="adminView" data-icon="A" id="tabAdmin" type="button" hidden>Admin</button>
       </nav>
@@ -349,6 +350,58 @@
               <button id="refreshGuestFlightsBtn" class="quiet-button" type="button">Refresh flight status</button>
             </div>
             <div id="guestFlightList" class="admin-card-list"></div>
+          </aside>
+        </section>
+      </section>
+
+      <section id="vendorHallView" class="view" aria-labelledby="vendorHallTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Vendor Hall</p>
+            <h2 id="vendorHallTitle">Booth assignment map</h2>
+          </div>
+          <div id="vendorHallSummary" class="vendor-hall-summary" aria-live="polite"></div>
+        </div>
+
+        <section class="workspace-grid admin-grid vendor-hall-grid">
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Floor plan</p>
+                <h2>Positions</h2>
+                <p class="summary">Select a booth to assign or edit a vendor. Occupied booths carry a filled marker and an "Occupied" label so state is never conveyed by color alone.</p>
+              </div>
+            </div>
+            <div class="vendor-hall-legend" aria-hidden="true">
+              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-available"></span> Available</span>
+              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-occupied"></span> Occupied</span>
+              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-selected"></span> Selected</span>
+            </div>
+            <div id="vendorHallMap" class="vendor-hall-map" role="list" aria-label="Vendor Hall booth map"></div>
+          </div>
+
+          <aside class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Assignment</p>
+                <h2 id="vendorHallEditorTitle">Select a position</h2>
+              </div>
+            </div>
+            <form id="vendorHallForm" class="form-grid" hidden>
+              <input id="vendorHallSpotCode" type="hidden" />
+              <label class="span-two">Vendor name
+                <input id="vendorHallVendorName" type="text" maxlength="160" autocomplete="off" required />
+              </label>
+              <label class="span-two">Notes
+                <textarea id="vendorHallNotes" rows="4" maxlength="2000" placeholder="Optional setup details, power needs, contacts..."></textarea>
+              </label>
+              <p id="vendorHallUpdatedMeta" class="summary"></p>
+              <div class="form-actions">
+                <button class="primary-button" type="submit">Save assignment</button>
+                <button id="vendorHallClearBtn" class="danger-button" type="button">Clear</button>
+              </div>
+            </form>
+            <p id="vendorHallMessage" class="message" aria-live="polite"></p>
           </aside>
         </section>
       </section>
@@ -948,6 +1001,14 @@
           <button id="closeVolunteerProfileBtn" class="quiet-button" type="button">Close</button>
         </div>
 
+        <div class="volunteer-profile-access">
+          <div>
+            <p class="eyebrow">Account access</p>
+            <p id="volunteerProfileBlacklistState" class="volunteer-profile-access-state" aria-live="polite"></p>
+          </div>
+          <button id="volunteerProfileBlacklistToggle" class="danger-button" type="button">Blacklist access</button>
+        </div>
+
         <div class="volunteer-profile-grid">
           <form id="volunteerProfileForm" class="profile-summary-form">
             <label>Strengths
@@ -1003,6 +1064,6 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=39"></script>
+    <script src="core.js?v=40"></script>
   </body>
 </html>

@@ -154,6 +154,15 @@ function ensureSchema(PDO $pdo): void {
         INDEX idx_volunteer_notes_user (user_id, created_at),
         INDEX idx_volunteer_notes_year (event_year)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS vendor_hall_assignments (
+        spot_code VARCHAR(8) NOT NULL,
+        vendor_name VARCHAR(160) NOT NULL DEFAULT '',
+        notes TEXT NULL,
+        updated_by BIGINT UNSIGNED NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (spot_code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_availability (
         user_id BIGINT UNSIGNED NOT NULL,
         available_day VARCHAR(20) NOT NULL,

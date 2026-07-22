@@ -30,7 +30,7 @@ Build or download `delta-h-release.zip`, then extract it into the staging docume
 - tests and documentation;
 - repository metadata.
 
-Copy `api/config.example.php` to `api/config.php` **inside staging only**, then enter the staging database and Discord values. Never upload the original July 19 `config.php` to GitHub.
+Copy `api/config.example.php` to `api/config.php` **inside staging only**, then enter the staging database and Discord values. Set `discord_vendor_hall_role_id` to the exact Discord role ID that may manage Vendor Hall positions; when blank, non-admin access is denied. Never upload the original July 19 `config.php` to GitHub.
 
 ## 4. Run the migration once
 
@@ -57,9 +57,12 @@ Verify all of the following on the staging hostname:
 5. A coordinator sees only their department unless they are a full Admin.
 6. Guest Relations flight confirmation numbers appear only to Guest Relations.
 7. Safety incident evidence can be uploaded, downloaded, and removed.
-8. Logout works and a stale POST without a valid CSRF token returns HTTP 403.
-9. Requests for `api/config.php`, SQL files, `tests/`, `scripts/`, and `docs/` return HTTP 403.
-10. `api/setup_admin.php`, `api/debug.php`, `api/check_db.php`, `api/db_upgrade.php`, `api/test.php`, and `api/db.php` return HTTP 404.
+8. A user with the configured Vendor Hall Discord role can assign/edit/clear a booth; an unprivileged user cannot access those API actions.
+9. A manager can add internal profile notes only within their department; a non-admin manager cannot manage an Admin account.
+10. Blacklisting a test volunteer revokes the volunteer's existing session on its next API request; restoring access allows a fresh Discord login.
+11. Logout works and a stale POST without a valid CSRF token returns HTTP 403.
+12. Requests for `api/config.php`, SQL files, `tests/`, `scripts/`, and `docs/` return HTTP 403.
+13. `api/setup_admin.php`, `api/debug.php`, `api/check_db.php`, `api/db_upgrade.php`, `api/test.php`, and `api/db.php` return HTTP 404.
 
 ## 6. Configure Plesk Git after staging passes
 
