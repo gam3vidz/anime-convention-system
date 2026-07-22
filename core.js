@@ -326,6 +326,21 @@ function bindEvents() {
   on("#volClockOutBtn", "click", () => updateClockStatus("", false, "#volunteerClockMessage", false));
   on("#adminClockInBtn", "click", () => updateClockStatus($("#adminClockLookup")?.value || "", true, "#adminClockMessage", true));
   on("#adminClockOutBtn", "click", () => updateClockStatus($("#adminClockLookup")?.value || "", false, "#adminClockMessage", true));
+  on("#registerDiscordClockCommandsBtn", "click", async () => {
+    const button = $("#registerDiscordClockCommandsBtn");
+    const status = $("#discordClockCommandStatus");
+    if (button) button.disabled = true;
+    if (status) status.textContent = "Registering Discord clock commands…";
+    try {
+      const result = await apiRequest("discord_register_commands", {});
+      const count = Array.isArray(result.commands) ? result.commands.length : 0;
+      if (status) status.textContent = `Registered ${count} Discord clock commands. In Discord, use /clock-panel to post the buttons.`;
+    } catch (err) {
+      if (status) status.textContent = err.message;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
 
   on("#logoutBtn", "click", async () => {
     await apiRequest("logout", {});

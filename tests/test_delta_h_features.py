@@ -131,8 +131,8 @@ class ManagementPortalTests(unittest.TestCase):
             ".volunteer-profile-access-state.is-blacklisted",
         ):
             self.assertIn(marker, self.css)
-        self.assertIn("styles.css?v=44", self.html)
-        self.assertIn("core.js?v=44", self.html)
+        self.assertIn("styles.css?v=45", self.html)
+        self.assertIn("core.js?v=45", self.html)
         self.assertIn("grid-template-columns: repeat(12, minmax(48px, 1fr));", self.css)
         self.assertIn("grid-template-columns: repeat(4, minmax(60px, 1fr));", self.css)
         self.assertNotIn("V0 COMMAND CENTER SHELL + ROSTER HANDOUTS", self.css)
@@ -170,6 +170,8 @@ class DiscordTimeClockTests(unittest.TestCase):
         self.assertIn("delta_clock_out", interactions)
         self.assertIn("delta_view_time", interactions)
         self.assertIn("'clock-panel'", interactions)
+        self.assertIn('id="registerDiscordClockCommandsBtn"', self.html)
+        self.assertIn('apiRequest("discord_register_commands"', self.client)
 
     def test_time_entries_are_scope_loaded_for_management_profiles(self):
         self.assertIn("CREATE TABLE IF NOT EXISTS time_clock_entries", self.schema)

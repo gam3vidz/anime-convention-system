@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=44" />
+    <link rel="stylesheet" href="styles.css?v=45" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -979,8 +979,10 @@
               <label>Volunteer<select id="discordDmVolunteerSelect"></select></label>
               <label>Message<input id="discordDmMessage" type="text" maxlength="1800" placeholder="Short Discord DM" /></label>
               <button id="sendDiscordDmBtn" class="primary-button" type="button">Send DM</button>
+              <button id="registerDiscordClockCommandsBtn" class="quiet-button" type="button">Register clock commands</button>
             </div>
             <p id="discordDmStatus" class="message" aria-live="polite"></p>
+            <p id="discordClockCommandStatus" class="message" aria-live="polite"></p>
           </div>
 
           <aside class="panel">
@@ -1140,6 +1142,6 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=44"></script>
+    <script src="core.js?v=45"></script>
   </body>
 </html>
