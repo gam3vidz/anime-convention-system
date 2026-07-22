@@ -1,34 +1,18 @@
-# Secrets and local configuration
+dist/
+
+# Deployment secrets and runtime state
+api/config.php
+api/uploads/incidents/*
+!api/uploads/.htaccess
+!api/uploads/.gitkeep
+
+# Local/editor/runtime files
+.DS_Store
 .env
 .env.*
-!.env.example
-*.pem
-*.key
-*.p12
-*.pfx
-
-# Python
+*.log
+*.bak
+*.zip
+.phpunit.result.cache
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.venv/
-venv/
-
-# JavaScript / TypeScript
-node_modules/
-dist/
-build/
-.next/
-coverage/
-
-# Editors and operating systems
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-*.swp
-
-# Runtime data
-*.sqlite
-*.sqlite3
-uploads/

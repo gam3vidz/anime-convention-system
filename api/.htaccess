@@ -1,0 +1,16 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^discord-callback\.php$ api.php?action=discord_callback [L,QSA]
+  RewriteRule ^discord-interactions\.php$ api.php?action=discord_interactions [L,QSA]
+</IfModule>
+
+<FilesMatch "^(api|discord-callback|discord-interactions)\.php$">
+  SetHandler application/x-httpd-php
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  <FilesMatch "(api|discord-callback|discord-interactions)\.php$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+  </FilesMatch>
+</IfModule>

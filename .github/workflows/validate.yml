@@ -1,4 +1,4 @@
-name: Validate repository
+name: Validate and package
 
 on:
   push:
@@ -8,19 +8,40 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
         with:
-          python-version: "3.12"
+          php-version: '8.2'
+          coverage: none
 
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Validate repository foundation
-        run: python scripts/validate_repository.py
+      - name: Lint PHP
+        run: find . -type f -name '*.php' -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: Check JavaScript syntax
+        run: node --check core.js
+
+      - name: Run security and release tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Build allowlisted release
+        run: python3 scripts/build-release.py
+
+      - name: Upload staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-h-release
+          path: |
+            dist/delta-h-release.zip
+            dist/release-manifest.json
+          if-no-files-found: error

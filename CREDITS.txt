@@ -1,0 +1,11 @@
+Delta H Scheduling System Credits
+
+The Delta H Scheduling System interface is custom-built for Delta H operations.
+Its volunteer/admin layout direction was informed by AnimeNL Volunteer Manager:
+
+AnimeNL Volunteer Manager
+Copyright (c) 2023 Peter Beverloo
+https://github.com/AnimeNL/volunteer-manager
+MIT License
+
+No AnimeNL branding is used in the Delta H Scheduling System.

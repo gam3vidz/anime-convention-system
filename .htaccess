@@ -1,0 +1,31 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(tests|scripts|migrations|docs|\.github)(/|$) - [F,L,NC]
+  RewriteRule ^api/discord-callback\.php$ api/api.php?action=discord_callback [L,QSA]
+  RewriteRule ^api/discord-interactions\.php$ api/api.php?action=discord_interactions [L,QSA]
+</IfModule>
+
+<FilesMatch "(^config\.php$|\.(sql|md|ya?ml|log|bak|zip)$)">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^(api|discord-callback|discord-interactions)\.php$">
+    SetHandler application/x-httpd-php
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+  <FilesMatch "(api|discord-callback|discord-interactions)\.php$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

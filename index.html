@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delta H Scheduling System</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=38" />
+    <style>
+      .auth-shell {
+        place-items: center;
+        padding: 40px 18px;
+      }
+      .auth-card-single {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-width: 760px;
+        margin: 0 auto;
+        gap: 20px;
+      }
+      .scrollable-form {
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
+      }
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+        font-size: 0.9rem;
+        cursor: pointer;
+        margin-bottom: 8px;
+      }
+      .checkbox-label input {
+        width: 16px;
+        min-height: 16px;
+        margin: 0;
+      }
+      .badge.pending { background: #fff7e6; color: #875600; }
+      .badge.approved { background: #e8f8ee; color: #157347; }
+      .badge.denied { background: #fff0f3; color: #c2415d; }
+      .auth-divider {
+        margin: 8px 0;
+        border: 0;
+        border-top: 1px solid var(--border);
+      }
+
+      /* Lockdown styles to prevent UI flashing before JS loads */
+      #authView, main, .app-header {
+        display: none !important;
+      }
+      body:not(.logged-in) #authView {
+        display: flex !important;
+      }
+      body.logged-in main {
+        display: block !important;
+      }
+      body.logged-in .app-header {
+        display: flex !important;
+      }
+    </style>
+  </head>
+  <body>
+    <section id="authView" class="auth-shell login-screen" aria-labelledby="authTitle">
+      <div class="login-bg-grid" aria-hidden="true"></div>
+      <div class="auth-card auth-card-single">
+        <div class="auth-brand-panel">
+          <span class="brand-mark" aria-hidden="true" style="margin: 0 auto 16px auto;">DH</span>
+          <p class="eyebrow">Delta H volunteer operations</p>
+          <h1 id="authTitle">Your convention command center</h1>
+          <p class="summary">Schedules, check-in, guest travel, Safety incidents, and coordinator alerts in one Discord-linked portal.</p>
+          <div class="auth-preview" aria-hidden="true">
+            <span>Discord required</span>
+            <span>Role checked</span>
+            <span>Schedule ready</span>
+          </div>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <button id="discordLoginBtn" class="primary-button login-oauth-btn" type="button">Log in with Discord</button>
+          <p class="summary">New volunteers sign up with Discord. A pending account is created automatically for coordinator approval.</p>
+          <p id="loginMessage" class="message" aria-live="polite"></p>
+        </form>
+
+      </div>
+    </section>
+
+    <header class="app-header">
+      <div class="brand-block">
+        <span class="brand-mark" aria-hidden="true">DH</span>
+        <div>
+          <p class="eyebrow">Volunteer operations</p>
+          <h1>Delta H</h1>
+        </div>
+      </div>
+      <nav class="tabs" aria-label="App views">
+        <span class="nav-section-label">Workspace</span>
+        <button class="tab active" data-view="volunteerView" data-icon="V" type="button">Volunteer</button>
+        <button class="tab" data-view="guestRelationsView" data-icon="G" id="tabGuestRelations" type="button" hidden>Guest Relations</button>
+        <button class="tab safety-tab" data-view="safetyView" data-icon="S" id="tabSafety" type="button" hidden>Safety</button>
+        <button class="tab" data-view="managementView" data-icon="M" id="tabManagement" type="button" hidden>Management</button>
+        <button class="tab" data-view="adminView" data-icon="A" id="tabAdmin" type="button" hidden>Admin</button>
+      </nav>
+      <div class="account-box">
+        <span id="accountLabel"></span>
+        <button id="logoutBtn" class="quiet-button" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="applicationView" class="view" aria-labelledby="applicationTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Discord volunteer application</p>
+            <h2 id="applicationTitle">Finish your Delta H application</h2>
+            <p class="summary">Your Discord account is linked. Complete these questions so coordinators can review and approve your volunteer account.</p>
+          </div>
+        </div>
+
+        <section class="panel application-panel">
+          <form id="createAccountForm" class="application-form scrollable-form">
+            <section class="signup-step is-active" data-signup-step="identity">
+              <p class="eyebrow">Step 1</p>
+              <h3>Discord and basics</h3>
+              <div class="form-grid">
+                <label>What is your Discord handle?
+                  <input id="applyDiscord" type="text" placeholder="@username" required />
+                </label>
+                <label>What is your date of birth?
+                  <input id="applyDob" type="date" required />
+                </label>
+                <label>What is your T-shirt size?
+                  <select id="applyShirtSize" required>
+                    <option value="" disabled selected>Select size</option>
+                    <option value="S">Small</option>
+                    <option value="M">Medium</option>
+                    <option value="L">Large</option>
+                    <option value="XL">XL</option>
+                    <option value="2XL">2XL</option>
+                    <option value="3XL">3XL</option>
+                    <option value="4XL">4XL</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="signup-step" data-signup-step="team">
+              <p class="eyebrow">Step 2</p>
+              <h3>Department and days</h3>
+              <div class="form-grid">
+                <label>What department are you requesting to volunteer with?
+                  <select id="applyDepartment" required>
+                    <option value="" selected disabled>Select department</option>
+                  </select>
+                </label>
+                <label>How many volunteer hours are you willing to work?
+                  <input id="applyRequestedHours" type="number" min="1" max="80" step="1" placeholder="Example: 12" required />
+                </label>
+              </div>
+              <div>
+                <p class="field-label">What days are you available to volunteer?</p>
+                <div id="applyDayOptions" class="day-option-grid" aria-label="Volunteer day options"></div>
+              </div>
+            </section>
+
+            <section class="signup-step" data-signup-step="availability">
+              <p class="eyebrow">Step 3</p>
+              <h3>Available time blocks</h3>
+              <p class="summary">Tap the times you are available. Coordinators use this to recommend shifts inside your department.</p>
+              <div id="applyAvailabilityGrid" class="availability-grid compact-availability"></div>
+            </section>
+
+            <section class="signup-step" data-signup-step="logistics">
+              <p class="eyebrow">Step 4</p>
+              <h3>Crash space, experience, and notes</h3>
+              <div class="form-grid">
+                <label>Do you need crash space?
+                  <select id="applyHotel" required>
+                    <option value="" disabled selected>Select one</option>
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                  </select>
+                </label>
+                <label>How do you identify your gender?
+                  <select id="applyGender" required>
+                    <option value="" disabled selected>Select one</option>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </label>
+                <label>Do you have any allergies? If yes, please list them.
+                  <input id="applyAllergies" type="text" placeholder="None, shellfish, gluten, etc." required />
+                </label>
+              </div>
+              <label>Have you worked with us before? If so, what department did you work with?
+                <textarea id="applyPreviousExperience" rows="3" placeholder="No, or list the department/event"></textarea>
+              </label>
+              <label>Do you have any relevant experience or skills?
+                <textarea id="applySkills" rows="3" placeholder="Customer service, radios, tech, line control, etc."></textarea>
+              </label>
+              <label>Is there anything else we should know? Are you volunteering with a group of friends? If so, please list their names.
+                <textarea id="applyAdditionalNotes" rows="4" placeholder="Friends, buddy requests, carpool notes, or anything coordinators should know"></textarea>
+              </label>
+            </section>
+
+            <div class="signup-progress" aria-hidden="true">
+              <span class="is-active"></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+
+            <div class="submit-bar">
+              <p id="applicationStatus" class="summary">After you submit, your account stays pending until a coordinator approves it.</p>
+              <button id="submitApplicationBtn" class="primary-button" type="submit">Submit Application</button>
+            </div>
+            <p id="createMessage" class="message" aria-live="polite"></p>
+          </form>
+        </section>
+      </section>
+
+      <section id="volunteerView" class="view active" aria-labelledby="volunteerTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow" id="volDepartmentHeader">Shift pickup</p>
+            <h2 id="volunteerTitle">Build your work schedule</h2>
+          </div>
+        </div>
+
+        <section class="panel profile-panel" aria-labelledby="profileTitle">
+          <div class="profile-row">
+            <img id="profilePhotoPreview" class="profile-photo" alt="Profile photo preview" />
+            <div>
+              <p class="eyebrow">Profile</p>
+              <h2 id="profileTitle">Your volunteer photo</h2>
+              <p class="summary">Upload a clear photo so coordinators can recognize you at check-in.</p>
+            </div>
+            <label class="photo-upload">Photo
+              <input id="profilePhotoInput" type="file" accept="image/png,image/jpeg,image/webp" />
+            </label>
+          </div>
+          <p id="profileMessage" class="message" aria-live="polite"></p>
+        </section>
+
+        <section class="panel preferences-panel" aria-labelledby="preferencesTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Buddy and carpool</p>
+              <h2 id="preferencesTitle">Schedule preferences</h2>
+              <p class="summary">Tell coordinators who you are trying to work near or travel with.</p>
+            </div>
+            <button id="savePreferencesBtn" class="quiet-button" type="button">Save preferences</button>
+          </div>
+          <div class="form-grid preference-grid">
+            <label>Buddy request <input id="profileBuddyRequest" type="text" placeholder="Name or note" /></label>
+            <label>Carpool request <input id="profileCarpoolRequest" type="text" placeholder="Driver, rider, or group" /></label>
+          </div>
+          <p id="preferenceMessage" class="message" aria-live="polite"></p>
+        </section>
+
+        <section class="panel availability-panel" aria-labelledby="availabilityTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Availability</p>
+              <h2 id="availabilityTitle">Your available days and times</h2>
+              <p class="summary">Keep this current so coordinators can recommend shifts that match your department and free hours.</p>
+            </div>
+            <button id="saveAvailabilityBtn" class="quiet-button" type="button">Save availability</button>
+          </div>
+          <div id="profileAvailabilityGrid" class="availability-grid"></div>
+          <p id="availabilityMessage" class="message" aria-live="polite"></p>
+        </section>
+
+        <section class="panel my-schedule-panel" aria-labelledby="myScheduleTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">My volunteer schedule</p>
+              <h2 id="myScheduleTitle">Your shifts and hours</h2>
+            </div>
+            <div class="clock-actions">
+              <span id="myClockStatus" class="status-pill">Not scheduled</span>
+              <button id="volClockInBtn" class="quiet-button" type="button">Clock in</button>
+              <button id="volClockOutBtn" class="quiet-button" type="button">Clock out</button>
+            </div>
+          </div>
+          <div id="myScheduleSummary" class="my-schedule-summary"></div>
+          <div id="myShiftList" class="my-shift-list" aria-live="polite"></div>
+          <p id="volunteerClockMessage" class="message" aria-live="polite"></p>
+        </section>
+
+        <div class="toolbar">
+          <p id="selectionSummary" class="summary">No shifts selected yet.</p>
+          <label>Sort shifts
+            <select id="volunteerShiftSort">
+              <option value="day">Day and time</option>
+              <option value="department">Department</option>
+              <option value="title">Title</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="shiftList" class="shift-grid" aria-live="polite"></div>
+
+        <div class="submit-bar">
+          <button id="submitVolunteerBtn" class="primary-button" type="button">Save Schedule</button>
+        </div>
+      </section>
+
+      <section id="guestRelationsView" class="view" aria-labelledby="guestRelationsTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Guest Relations</p>
+            <h2 id="guestRelationsTitle">Guest flight tracker</h2>
+          </div>
+        </div>
+
+        <section class="workspace-grid admin-grid">
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Arrivals</p>
+                <h2>Add a guest flight</h2>
+              </div>
+            </div>
+            <form id="guestFlightForm" class="form-grid">
+              <label>Guest name<input id="guestFlightName" type="text" required /></label>
+              <label>Airline confirmation number<input id="guestConfirmationNumber" type="password" autocomplete="off" maxlength="80" required /></label>
+              <label>Flight number<input id="guestFlightNumber" type="text" placeholder="AA1234" required /></label>
+              <label>Flight date<input id="guestFlightDate" type="date" required /></label>
+              <label>Assigned pickup person<select id="guestPickupAssignee" required><option value="">Choose active Guest Relations staff</option></select></label>
+              <div class="form-actions"><button class="primary-button" type="submit">Track flight</button></div>
+            </form>
+            <p id="guestFlightMessage" class="message" aria-live="polite"></p>
+          </div>
+
+          <aside class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Status</p>
+                <h2>Tracked guests</h2>
+              </div>
+              <button id="refreshGuestFlightsBtn" class="quiet-button" type="button">Refresh flight status</button>
+            </div>
+            <div id="guestFlightList" class="admin-card-list"></div>
+          </aside>
+        </section>
+      </section>
+
+      <section id="safetyView" class="view safety-view" aria-labelledby="safetyTitle">
+        <div class="page-heading safety-heading">
+          <div>
+            <p class="eyebrow">Safety operations</p>
+            <h2 id="safetyTitle">Incident command log</h2>
+            <p class="summary">Create, update, and document incidents with a complete evidence trail.</p>
+          </div>
+          <button id="newIncidentBtn" class="primary-button safety-primary" type="button">New incident</button>
+        </div>
+
+        <section id="safetyStats" class="stats-grid safety-stats" aria-label="Incident totals"></section>
+
+        <section class="safety-workspace">
+          <aside class="panel incident-index-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Incident queue</p>
+                <h2>Reports</h2>
+              </div>
+              <span id="incidentResultCount" class="status-pill">0 reports</span>
+            </div>
+            <div class="incident-filters">
+              <label class="search-field">Search
+                <input id="incidentSearch" type="search" placeholder="Number, title, or location" />
+              </label>
+              <label>Status
+                <select id="incidentStatusFilter">
+                  <option value="All">All statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="Investigating">Investigating</option>
+                  <option value="Monitoring">Monitoring</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </label>
+              <label>Severity
+                <select id="incidentSeverityFilter">
+                  <option value="All">All severities</option>
+                  <option value="Critical">Critical</option>
+                  <option value="High">High</option>
+                  <option value="Moderate">Moderate</option>
+                  <option value="Low">Low</option>
+                </select>
+              </label>
+            </div>
+            <div id="incidentList" class="incident-list" aria-live="polite"></div>
+          </aside>
+
+          <article class="panel incident-editor-panel">
+            <div class="incident-editor-header">
+              <div>
+                <p class="eyebrow">Incident record</p>
+                <h2 id="incidentEditorTitle">Create a new report</h2>
+              </div>
+              <span id="incidentNumberBadge" class="incident-number">Draft</span>
+            </div>
+
+            <form id="incidentForm" class="incident-form">
+              <input id="incidentId" type="hidden" />
+              <div class="form-grid incident-top-grid">
+                <label class="span-two">Title
+                  <input id="incidentTitle" type="text" maxlength="180" placeholder="Short, factual summary" required />
+                </label>
+                <label>Type
+                  <select id="incidentType" required>
+                    <option value="Medical">Medical</option>
+                    <option value="Injury">Injury</option>
+                    <option value="Security">Security</option>
+                    <option value="Lost child">Lost child</option>
+                    <option value="Harassment">Harassment</option>
+                    <option value="Property damage">Property damage</option>
+                    <option value="Crowd / line">Crowd / line</option>
+                    <option value="Other" selected>Other</option>
+                  </select>
+                </label>
+                <label>Severity
+                  <select id="incidentSeverity" required>
+                    <option value="Low">Low</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </label>
+                <label>Status
+                  <select id="incidentStatus" required>
+                    <option value="Open">Open</option>
+                    <option value="Investigating">Investigating</option>
+                    <option value="Monitoring">Monitoring</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </label>
+                <label>Occurred at
+                  <input id="incidentOccurredAt" type="datetime-local" required />
+                </label>
+                <label class="span-two">Location
+                  <input id="incidentLocation" type="text" maxlength="180" placeholder="Room, hall, entrance, or nearby landmark" />
+                </label>
+              </div>
+
+              <label>What happened?
+                <textarea id="incidentDescription" rows="5" maxlength="30000" placeholder="Record observable facts, sequence of events, and immediate risks." required></textarea>
+              </label>
+              <label>Actions taken
+                <textarea id="incidentActionsTaken" rows="4" maxlength="30000" placeholder="First aid, de-escalation, escort, notifications, or follow-up."></textarea>
+              </label>
+              <div class="form-grid">
+                <label>People involved
+                  <textarea id="incidentPeopleInvolved" rows="3" maxlength="30000" placeholder="Names, badge numbers, descriptions, or contact details as appropriate."></textarea>
+                </label>
+                <label>Witnesses
+                  <textarea id="incidentWitnesses" rows="3" maxlength="30000" placeholder="Witness names and contact details."></textarea>
+                </label>
+              </div>
+              <div class="incident-flags">
+                <label class="checkbox-label"><input id="incidentMedicalAttention" type="checkbox" /> Medical attention provided or requested</label>
+                <label class="checkbox-label"><input id="incidentPoliceContacted" type="checkbox" /> Law enforcement contacted</label>
+              </div>
+              <div class="form-actions incident-save-row">
+                <p id="incidentFormMessage" class="message" aria-live="polite"></p>
+                <button id="clearIncidentBtn" class="quiet-button" type="button">Clear</button>
+                <button class="primary-button safety-primary" type="submit">Save incident</button>
+              </div>
+            </form>
+
+            <section id="incidentEvidenceSection" class="incident-subsection" aria-labelledby="evidenceTitle">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Attached evidence</p>
+                  <h3 id="evidenceTitle">Photos, files, and links</h3>
+                </div>
+                <span class="privacy-chip">Safety access only</span>
+              </div>
+              <p id="evidenceEmptyHint" class="summary">Save the incident before attaching evidence.</p>
+              <div id="evidenceControls" class="evidence-controls" hidden>
+                <div class="evidence-upload-card">
+                  <label>Upload photo or PDF
+                    <input id="incidentEvidenceFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" />
+                  </label>
+                  <label>Caption
+                    <input id="incidentEvidenceCaption" type="text" maxlength="500" placeholder="What this evidence shows" />
+                  </label>
+                  <button id="uploadEvidenceBtn" class="quiet-button" type="button">Upload evidence</button>
+                </div>
+                <div class="evidence-upload-card">
+                  <label>Imgur or HTTPS link
+                    <input id="incidentEvidenceUrl" type="url" maxlength="2048" placeholder="https://i.imgur.com/..." />
+                  </label>
+                  <label>Caption
+                    <input id="incidentEvidenceUrlCaption" type="text" maxlength="500" placeholder="Source or context" />
+                  </label>
+                  <button id="attachEvidenceUrlBtn" class="quiet-button" type="button">Attach link</button>
+                </div>
+              </div>
+              <p id="incidentEvidenceMessage" class="message" aria-live="polite"></p>
+              <div id="incidentEvidenceList" class="evidence-grid"></div>
+            </section>
+
+            <section id="incidentActivitySection" class="incident-subsection" aria-labelledby="activityTitle">
+              <div class="panel-heading"><div><p class="eyebrow">Audit trail</p><h3 id="activityTitle">Report activity</h3></div></div>
+              <div id="incidentActivityList" class="incident-timeline"></div>
+            </section>
+          </article>
+        </section>
+      </section>
+
+      <section id="managementView" class="view" aria-labelledby="managementTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Personnel</p>
+            <h2 id="managementTitle">Management Portal</h2>
+          </div>
+        </div>
+
+        <section id="managementOverview" class="stats-grid management-overview" aria-label="Management overview"></section>
+
+        <section class="panel alert-command-panel" aria-labelledby="shiftAlertTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Automated accountability</p>
+              <h2 id="shiftAlertTitle">Missed shift check-in alerts</h2>
+              <p class="summary">DM designated department heads when an assigned volunteer is still missing after the grace period.</p>
+            </div>
+            <div class="alert-live-chip"><span></span> Discord DM workflow</div>
+          </div>
+
+          <div class="alert-workspace">
+            <form id="shiftAlertRuleForm" class="alert-rule-form">
+              <div class="form-grid alert-rule-grid">
+                <label class="span-two">Shift
+                  <select id="alertShiftSelect" required></select>
+                </label>
+                <label>Actual event date
+                  <input id="alertShiftDate" type="date" required />
+                </label>
+                <label>Grace period
+                  <select id="alertGraceMinutes">
+                    <option value="5">5 minutes</option>
+                    <option value="10">10 minutes</option>
+                  </select>
+                </label>
+              </div>
+              <label class="checkbox-label alert-enabled"><input id="alertRuleEnabled" type="checkbox" checked /> Alert is active for this shift</label>
+              <fieldset class="recipient-fieldset">
+                <legend>Who should receive the Discord DM?</legend>
+                <p class="summary">Choose one or more linked department heads or responders.</p>
+                <div id="alertRecipientList" class="recipient-grid"></div>
+              </fieldset>
+              <label>Message template
+                <textarea id="alertMessageTemplate" rows="3" maxlength="1800" placeholder="Leave blank for the recommended message."></textarea>
+              </label>
+              <p class="placeholder-help">Available placeholders: {volunteer}, {shift}, {department}, {date}, {day}, {time}, {grace}</p>
+              <div class="form-actions alert-form-actions">
+                <p id="shiftAlertMessage" class="message" aria-live="polite"></p>
+                <button id="runShiftAlertsBtn" class="quiet-button" type="button">Run alert scan now</button>
+                <button class="primary-button" type="submit">Save alert rule</button>
+              </div>
+            </form>
+
+            <aside class="alert-activity-column">
+              <div>
+                <p class="eyebrow">Configured shifts</p>
+                <div id="alertRuleList" class="alert-rule-list"></div>
+              </div>
+              <div>
+                <p class="eyebrow">Recent deliveries</p>
+                <div id="alertDeliveryList" class="alert-delivery-list"></div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="management-shell">
+          <article class="panel command-panel" aria-labelledby="createShiftTitle">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Shift builder</p>
+                <h2 id="createShiftTitle">Create shift from template</h2>
+              </div>
+            </div>
+            <form id="createShiftForm" class="form-grid shift-builder-grid">
+              <label>Template<select id="shiftTemplateSelect"></select></label>
+              <label>Department<select id="newShiftDepartment" required></select></label>
+              <label>Title<input id="newShiftTitle" type="text" required /></label>
+              <label>Day
+                <select id="newShiftDay" required>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                  <option value="Monday">Monday</option>
+                </select>
+              </label>
+              <label>Time<input id="newShiftTime" type="text" placeholder="1:00 PM - 5:00 PM" required /></label>
+              <label>Hours<input id="newShiftHours" type="number" min="1" value="4" required /></label>
+              <label>Capacity<input id="newShiftCapacity" type="number" min="1" value="2" required /></label>
+              <label>Note<input id="newShiftNote" type="text" placeholder="Optional" /></label>
+              <div class="form-actions">
+                <button class="primary-button" type="submit">Create shift</button>
+              </div>
+            </form>
+            <p id="createShiftMessage" class="message" aria-live="polite"></p>
+          </article>
+
+          <article class="panel command-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Assignments</p>
+                <h2>Assign, revoke, or override</h2>
+              </div>
+            </div>
+            <div class="assignment-controls">
+              <label>Department<select id="manageShiftDepartmentFilter"></select></label>
+              <label>Shift<select id="manageShiftSelect"></select></label>
+              <label>Volunteer<select id="manageVolunteerSelect"></select></label>
+              <div class="button-row">
+                <button id="assignVolunteerBtn" class="primary-button" type="button">Assign</button>
+                <button id="revokeVolunteerBtn" class="quiet-button" type="button">Revoke</button>
+                <button id="deleteShiftBtn" class="danger-button" type="button">Delete shift</button>
+              </div>
+            </div>
+            <div class="assignment-board">
+              <div>
+                <p class="eyebrow">Recommended</p>
+                <div id="shiftRecommendedList" class="admin-card-list"></div>
+              </div>
+              <div>
+                <p class="eyebrow">Currently assigned</p>
+                <div id="shiftAssignedList" class="admin-card-list"></div>
+              </div>
+            </div>
+            <p id="assignmentMessage" class="message" aria-live="polite"></p>
+          </article>
+
+          <article class="panel command-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Exports</p>
+                <h2>Schedule export</h2>
+              </div>
+            </div>
+            <div class="export-controls">
+              <label>Export type
+                <select id="exportMode">
+                  <option value="day">All shifts by day</option>
+                  <option value="volunteer">All shifts by volunteer</option>
+                  <option value="department">All shifts by department</option>
+                  <option value="coordinator">Coordinator rollup with food count</option>
+                </select>
+              </label>
+              <label>Day
+                <select id="exportDay">
+                  <option value="All days">All days</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                  <option value="Monday">Monday</option>
+                </select>
+              </label>
+              <div class="form-actions">
+                <button id="exportScheduleBtn" class="primary-button" type="button">Export CSV</button>
+              </div>
+              <button id="exportAllergiesBtn" class="quiet-button" type="button">Export allergies</button>
+            </div>
+            <p id="exportMessage" class="message" aria-live="polite"></p>
+          </article>
+
+          <article class="panel command-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Food and counts</p>
+                <h2>Daily meal counts</h2>
+              </div>
+            </div>
+            <div class="meal-controls">
+              <label>Breakfast<select id="breakfastWindow"></select></label>
+              <label>Lunch<select id="lunchWindow"></select></label>
+              <label>Dinner<select id="dinnerWindow"></select></label>
+              <button id="saveMealWindowsBtn" class="quiet-button" type="button">Save meal times</button>
+            </div>
+            <div id="dailyCountList" class="admin-card-list"></div>
+          </article>
+
+          <article class="panel command-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Bulk import</p>
+                <h2>Import shifts from Excel</h2>
+              </div>
+            </div>
+            <div class="import-controls">
+              <div class="button-row">
+                <button id="downloadShiftTemplateBtn" class="quiet-button" type="button">Download XLSX template</button>
+              </div>
+              <label>Shift workbook
+                <input id="shiftImportFile" type="file" accept=".xlsx,.xls" />
+              </label>
+              <button id="importShiftsBtn" class="primary-button" type="button">Import shifts</button>
+            </div>
+            <p id="shiftImportMessage" class="message" aria-live="polite"></p>
+          </article>
+        </section>
+
+        <section class="panel hotel-panel" style="margin-bottom: 24px;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Hotels</p>
+              <h2>Hotel rooms and check-in</h2>
+            </div>
+          </div>
+          <div class="hotel-tools">
+            <label>Room name<input id="hotelRoomName" type="text" placeholder="Room 401" /></label>
+            <label>Capacity<input id="hotelRoomCapacity" type="number" min="1" value="4" /></label>
+            <label>Room type
+              <select id="hotelRoomGender">
+                <option value="">Any</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+            <button id="createHotelRoomBtn" class="primary-button" type="button">Add room</button>
+            <label>Sort/filter
+              <select id="hotelGenderFilter">
+                <option value="All">All</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+                <option value="Unspecified">Unspecified</option>
+              </select>
+            </label>
+          </div>
+          <div id="hotelRoomList" class="hotel-room-grid"></div>
+          <p id="hotelMessage" class="message" aria-live="polite"></p>
+        </section>
+
+        <section class="panel" style="margin-bottom: 24px;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Action Required</p>
+              <h2>Pending Applications</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Applicant</th>
+                  <th>Request</th>
+                  <th>Availability</th>
+                  <th>Details</th>
+                  <th>Crash Space</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="pendingApplicationsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading roster-panel-heading">
+            <div>
+              <p class="eyebrow">Roster</p>
+              <h2>Active Accounts</h2>
+              <div id="shirtSizeSummary" class="shirt-size-summary" aria-live="polite"></div>
+              <div id="volunteerProfileDashboardSummary" class="shirt-size-summary" aria-live="polite"></div>
+            </div>
+            <div class="roster-toolbar" aria-label="Volunteer roster filters">
+              <label class="compact-field">
+                <span>Search</span>
+                <input id="rosterSearch" type="search" placeholder="Name, email, or Discord" autocomplete="off" />
+              </label>
+              <label class="compact-field">
+                <span>Department</span>
+                <select id="rosterDepartmentFilter"><option value="all">All departments</option></select>
+              </label>
+              <label class="compact-field">
+                <span>T-shirt</span>
+                <select id="rosterShirtFilter">
+                  <option value="all">All pickup statuses</option>
+                  <option value="pending">Needs pickup</option>
+                  <option value="picked">Picked up</option>
+                </select>
+              </label>
+              <label class="compact-field">
+                <span>Next year</span>
+                <select id="rosterProfileFilter">
+                  <option value="all">All recommendations</option>
+                  <option value="no-profile">Needs profile</option>
+                  <option value="Undecided">Undecided</option>
+                  <option value="Strongly invite back">Strongly invite back</option>
+                  <option value="Invite back">Invite back</option>
+                  <option value="Invite with coaching">Invite with coaching</option>
+                  <option value="Do not invite back">Do not invite back</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Volunteer</th>
+                  <th>Current Rank</th>
+                  <th>Assigned Dept</th>
+                  <th>T-shirt</th>
+                  <th>Status</th>
+                  <th>Profile</th>
+                  <th>System Access</th>
+                </tr>
+              </thead>
+              <tbody id="rosterManagementBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="adminView" class="view" aria-labelledby="adminTitle">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Admin dashboard</p>
+            <h2 id="adminTitle">Hours, lodging, and coverage</h2>
+          </div>
+        </div>
+
+        <section class="stats-grid" aria-label="Scheduler totals">
+          <article class="stat"><span>Total Approved</span><strong id="totalVolunteers">0</strong></article>
+          <article class="stat"><span>Scheduled hours</span><strong id="totalHours">0</strong></article>
+          <article class="stat"><span>Hotel requests</span><strong id="hotelRequests">0</strong></article>
+          <article class="stat"><span>Clocked in</span><strong id="clockedInCount">0</strong></article>
+        </section>
+
+        <section class="workspace-grid admin-grid">
+          <div class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Live status</p><h2>Currently clocked in</h2></div></div>
+            <div id="clockedInList" class="checked-in-list" aria-live="polite"></div>
+          </div>
+
+          <aside class="panel status-panel">
+            <div><p class="eyebrow">Desk controls</p><h2>Admin clock station</h2></div>
+            <label>Volunteer name or email<input id="adminClockLookup" type="text" placeholder="Alex Tanaka" /></label>
+            <div class="button-row">
+              <button id="adminClockInBtn" class="primary-button" type="button">Clock in</button>
+              <button id="adminClockOutBtn" class="quiet-button" type="button">Clock out</button>
+            </div>
+            <p id="adminClockMessage" class="message" aria-live="polite"></p>
+          </aside>
+        </section>
+
+        <section class="workspace-grid admin-grid">
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Availability</p>
+                <h2>Availability by day and hour</h2>
+              </div>
+              <button id="refreshAvailabilityBtn" class="quiet-button" type="button">Show availability</button>
+            </div>
+            <div class="availability-toolbar">
+              <div id="availabilityDayButtons" class="segmented-buttons" aria-label="Availability days"></div>
+              <label>Hour<select id="availabilityHourFilter"></select></label>
+            </div>
+            <div id="adminAvailabilityList" class="admin-card-list"></div>
+          </div>
+
+          <aside class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Recommendations</p>
+                <h2>Suggested schedule</h2>
+              </div>
+              <button id="recommendScheduleBtn" class="primary-button" type="button">Recommend</button>
+            </div>
+            <div id="recommendedScheduleList" class="admin-card-list"></div>
+          </aside>
+        </section>
+
+        <section class="workspace-grid admin-grid">
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Discord</p>
+                <h2>Message a volunteer</h2>
+              </div>
+            </div>
+            <div class="assignment-controls">
+              <label>Volunteer<select id="discordDmVolunteerSelect"></select></label>
+              <label>Message<input id="discordDmMessage" type="text" maxlength="1800" placeholder="Short Discord DM" /></label>
+              <button id="sendDiscordDmBtn" class="primary-button" type="button">Send DM</button>
+            </div>
+            <p id="discordDmStatus" class="message" aria-live="polite"></p>
+          </div>
+
+          <aside class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Logs</p>
+                <h2>Recent activity</h2>
+              </div>
+            </div>
+            <div id="systemLogList" class="admin-card-list"></div>
+          </aside>
+        </section>
+
+        <section class="panel" style="margin-bottom: 18px;">
+          <div class="panel-heading"><div><p class="eyebrow">Coverage</p><h2>Who's on shift</h2></div></div>
+          <div id="onShiftList" class="shift-grid"></div>
+        </section>
+
+      </section>
+    </main>
+
+    <dialog id="alertDialog">
+      <form method="dialog" class="dialog-card">
+        <h3>Attention</h3>
+        <div id="dialogContent"></div>
+        <button class="primary-button" value="ok">Got it</button>
+      </form>
+    </dialog>
+
+    <dialog id="volunteerProfileDialog" class="volunteer-profile-dialog">
+      <div class="volunteer-profile-card">
+        <div class="panel-heading volunteer-profile-heading">
+          <div>
+            <p class="eyebrow">Internal management record</p>
+            <h2 id="volunteerProfileName">Volunteer profile</h2>
+            <p id="volunteerProfileMeta" class="summary"></p>
+          </div>
+          <button id="closeVolunteerProfileBtn" class="quiet-button" type="button">Close</button>
+        </div>
+
+        <div class="volunteer-profile-grid">
+          <form id="volunteerProfileForm" class="profile-summary-form">
+            <label>Strengths
+              <textarea id="volunteerProfileStrengths" rows="4" maxlength="4000" placeholder="Reliability, guest service, leadership, technical skills..."></textarea>
+            </label>
+            <label>Areas for improvement
+              <textarea id="volunteerProfileGrowth" rows="4" maxlength="4000" placeholder="Coaching opportunities, communication, attendance concerns..."></textarea>
+            </label>
+            <label>Recommendation for next year
+              <select id="volunteerProfileRecommendation">
+                <option>Undecided</option>
+                <option>Strongly invite back</option>
+                <option>Invite back</option>
+                <option>Invite with coaching</option>
+                <option>Do not invite back</option>
+              </select>
+            </label>
+            <label>Private management summary
+              <textarea id="volunteerProfileSummary" rows="5" maxlength="4000" placeholder="Overall assessment and information the next year's leadership team should know."></textarea>
+            </label>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Save profile</button>
+            </div>
+            <p id="volunteerProfileMessage" class="message" aria-live="polite"></p>
+          </form>
+
+          <section class="profile-note-column" aria-labelledby="profileNoteHistoryTitle">
+            <form id="volunteerProfileNoteForm" class="profile-note-form">
+              <div class="panel-heading">
+                <div><p class="eyebrow">Permanent history</p><h3>Add management note</h3></div>
+              </div>
+              <div class="profile-note-controls">
+                <label>Type
+                  <select id="volunteerProfileNoteType">
+                    <option>General</option>
+                    <option>Strength</option>
+                    <option>Coaching</option>
+                    <option>Attendance</option>
+                    <option>Leadership follow-up</option>
+                    <option>Incident follow-up</option>
+                  </select>
+                </label>
+                <label>Event year<input id="volunteerProfileNoteYear" type="number" min="2020" max="2100" required /></label>
+              </div>
+              <label>Note<textarea id="volunteerProfileNoteText" rows="4" maxlength="4000" required></textarea></label>
+              <div class="form-actions"><button class="primary-button" type="submit">Add dated note</button></div>
+            </form>
+            <h3 id="profileNoteHistoryTitle">Note history</h3>
+            <div id="volunteerProfileNoteList" class="profile-note-list"></div>
+          </section>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="core.js?v=39"></script>
+  </body>
+</html>

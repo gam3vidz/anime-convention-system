@@ -1,47 +1,44 @@
-# Anime Convention System
+# Delta H Volunteer Operations
 
-A practical, self-hostable system for running small and medium-sized anime conventions without stitching together a dozen spreadsheets and disconnected services.
+Private convention volunteer-management portal for schedules, Discord-linked access, shift check-in, hotel coordination, Guest Relations flight assignments, Safety incidents, missed-shift alerts, and internal coordinator notes.
 
-## Project status
+## Security model
 
-**Bootstrap stage.** The repository foundation is in place; product requirements and the first implementation milestone come next.
+- Discord OAuth is the only interactive login path.
+- Guild roles gate coordinator, Guest Relations, and Safety surfaces.
+- Mutating API actions require POST plus a per-session CSRF token.
+- Session cookies are HTTP-only, SameSite=Lax, and Secure on HTTPS.
+- Uploaded incident evidence is MIME-checked, randomly named, stored under a non-executable directory, and downloaded as an attachment.
+- Database schema changes run only through the CLI migration command.
+- `api/config.php` and uploaded evidence are runtime-only and must never be committed.
 
-## Planned MVP
-
-- Convention setup: name, dates, venue, rooms, and operating hours
-- Schedule management for panels, screenings, workshops, and special events
-- Attendee registration and fast check-in
-- Staff and volunteer accounts with role-based access
-- Panelist, vendor, and artist-alley applications
-- Announcements and schedule-change notifications
-- Mobile-friendly public schedule
-- Basic operational reports and exports
-
-## Product principles
-
-- Easy for nontechnical convention staff to operate
-- Mobile-first for attendees and staff working the floor
-- Accessible and keyboard-friendly
-- Private by default with clear role permissions
-- Self-hostable without depending on expensive SaaS products
-- Auditable: important administrative changes should be traceable
-
-## Repository layout
-
-- `docs/PROJECT_BRIEF.md` — initial scope and product direction
-- `scripts/validate_repository.py` — repository foundation check
-- `tests/` — automated tests
-- `.github/workflows/validate.yml` — GitHub Actions validation
-
-## Development
-
-Run the current foundation checks with:
+## Verify locally
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 scripts/validate_repository.py
+node --check core.js
+podman run --rm -v "$PWD:/app:ro,Z" -w /app php:8.2-cli-alpine \
+  sh -lc 'find . -type f -name "*.php" -print0 | sort -z | xargs -0 -n1 php -l'
+python3 scripts/build-release.py
 ```
 
-## Next milestone
+The release builder writes:
 
-Turn the product brief into the first working vertical slice: create a convention, define rooms and time slots, publish a public schedule, and verify it on desktop and mobile.
+- `dist/delta-h-release.zip`
+- `dist/release-manifest.json`
+
+The ZIP contains only allowlisted runtime files. It deliberately excludes live configuration, uploads, tests, documentation, migrations, and maintenance/debug endpoints.
+
+## Configure a deployment
+
+1. Copy `api/config.example.php` to `api/config.php` on the server.
+2. Fill the server copy with database and Discord credentials.
+3. Keep `api/config.php` out of Git and deployment archives.
+4. Run `php scripts/migrate.php` once for that environment.
+5. Deploy to an isolated staging hostname before production.
+
+See [`docs/DEPLOY-PLESK.md`](docs/DEPLOY-PLESK.md) for the staging and Plesk Git procedure.
+
+## Important credential notice
+
+The July 19 source ZIP supplied for recovery contained live credentials in multiple files. Those values are not present in this repository or its release archive. Rotate the database password, Discord client secret, Discord bot token, and cron secret before the hardened release is promoted to production.
