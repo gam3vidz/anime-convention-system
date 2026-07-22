@@ -60,6 +60,10 @@ const VENDOR_HALL_SPOTS = ["A", "B", "C", "D"].flatMap(section =>
   Array.from({ length: 12 }, (_, index) => `${section}${index + 1}`)
 );
 let selectedAvailabilityDay = "Thursday";
+// Command Center day filter. null = all scheduled days; otherwise one of
+// DASHBOARD_DAYS. Selecting a day rescopes the dashboard's shift-derived
+// summary (Total Shifts card + Department Overview) to that day.
+let dashboardDayFilter = null;
 let latestRecommendations = [];
 let focusedManagedShiftId = null;
 let selectedIncidentId = null;
@@ -336,16 +340,57 @@ function toggleSidebar() {
   setSidebarOpen(!sidebar?.classList.contains("open"));
 }
 
+// Command Center day segment. These are the peak convention days shown in
+// the dashboard header; they are a subset of SCHEDULE_DAYS used purely for
+// the dashboard's day filter UI.
+const DASHBOARD_DAYS = ["Thursday", "Friday", "Saturday", "Sunday"];
+
+// Deterministic, Page-like department accent colors. Departments are sorted
+// and mapped to this palette by index so the same department always draws
+// the same color (no randomness, no per-render drift).
+const DASHBOARD_DEPT_COLORS = [
+  "#6366f1", "#06b6d4", "#f59e0b", "#10b981",
+  "#ef4444", "#ec4899", "#a855f7", "#3b82f6", "#14b8a6"
+];
+
+// Inline SVG nav/stat icons ported from the canonical Delta H Pages UI
+// (core.js NAV_ICONS). Used for the sidebar and dashboard stat cards so the
+// navigation renders real glyphs instead of letter badges. The `safety`
+// glyph (shield) is drawn in the same stroke style for the one nav item the
+// canonical set does not cover.
+const NAV_ICONS = {
+  dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  availability: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  shifts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  myShifts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
+  manage: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+  roster: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>',
+  food: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>',
+  hotels: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>',
+  guests: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 2.9 5.2c.3.4.8.5 1.3.3l.5-.2c.4-.2.6-.6.5-1.1z"/></svg>',
+  log: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>',
+  safety: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+};
+
 // Sidebar navigation model. Visibility is derived entirely from the
 // server-provided session/user capabilities — the server stays
-// authoritative; these checks only decide what to render.
+// authoritative; these checks only decide what to render. Dashboard is the
+// first item for every signed-in, approved user.
 const SIDEBAR_NAV_ITEMS = [
-  { view: "volunteerView", label: "Volunteer", icon: "V", show: () => true },
-  { view: "guestRelationsView", label: "Guest Relations", icon: "G", show: (user) => !!user.canGuestRelations },
-  { view: "safetyView", label: "Safety", icon: "S", show: (user) => !!user.canSafety },
-  { view: "vendorHallView", label: "Vendor Hall", icon: "H", show: (user) => !!user.canVendorHall },
-  { view: "managementView", label: "Management", icon: "M", show: (user) => isManagementUser(user) },
-  { view: "adminView", label: "Admin", icon: "A", show: (user) => isFullAdmin(user) }
+  { section: "Volunteer", navKey: "dashboardView", view: "dashboardView", label: "Dashboard", icon: "dashboard", show: () => true },
+  { section: "Volunteer", navKey: "volunteerView", view: "volunteerView", label: "My Profile", icon: "profile", show: () => true },
+  { section: "Volunteer", navKey: "availability", view: "volunteerView", label: "Availability", icon: "availability", show: () => true },
+  { section: "Volunteer", navKey: "shiftBoard", view: "volunteerView", label: "Shift Board", icon: "shifts", show: () => true },
+  { section: "Volunteer", navKey: "myShifts", view: "volunteerView", label: "My Shifts", icon: "myShifts", show: () => true },
+  { section: "Management", navKey: "managementView", view: "managementView", label: "Manage Shifts", icon: "manage", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "volunteerRoster", view: "managementView", label: "Volunteer Roster", icon: "roster", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "foodCounts", view: "managementView", label: "Food & Counts", icon: "food", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "hotels", view: "managementView", label: "Hotels", icon: "hotels", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "guestRelationsView", view: "guestRelationsView", label: "Guest Relations", icon: "guests", show: (user) => !!user.canGuestRelations || isManagementUser(user) },
+  { section: "Management", navKey: "adminView", view: "adminView", label: "System Log", icon: "log", show: (user) => isFullAdmin(user) },
+  { section: "Management", navKey: "vendorHallView", view: "vendorHallView", label: "Vendor Hall", icon: "hotels", show: (user) => !!user.canVendorHall },
+  { section: "Management", navKey: "safetyView", view: "safetyView", label: "Safety", icon: "safety", show: (user) => !!user.canSafety }
 ];
 
 function updateAuthView() {
@@ -365,12 +410,14 @@ function updateAuthView() {
   renderUserMini();
   renderSidebarNav();
 
+  // Approved users — management and volunteers alike — land on the
+  // Command Center dashboard. Applicants still finish their application
+  // first. The dashboard itself renders a management or user-level summary
+  // based on the same server-authoritative capabilities.
   if (needsApplication(currentUser)) {
     switchView("applicationView");
-  } else if (isManagementUser(currentUser)) {
-    switchView("managementView");
   } else {
-    switchView(currentUser.canSafety ? "safetyView" : currentUser.canGuestRelations ? "guestRelationsView" : currentUser.canVendorHall ? "vendorHallView" : "volunteerView");
+    switchView("dashboardView");
   }
 }
 
@@ -390,31 +437,36 @@ function renderSidebarNav() {
   if (!currentUser) { nav.innerHTML = ""; return; }
 
   const items = needsApplication(currentUser)
-    ? [{ view: "applicationView", label: "Application", icon: "A" }]
+    ? [{ section: "Volunteer", navKey: "applicationView", view: "applicationView", label: "Application", icon: "profile" }]
     : SIDEBAR_NAV_ITEMS.filter(item => item.show(currentUser));
 
-  const activeView = document.body.dataset.view;
-  nav.innerHTML = `<span class="nav-section-label">Workspace</span>` + items.map(item => `
-    <a class="nav-item${item.view === activeView ? " active" : ""}" data-view="${item.view}" role="button" tabindex="0">
-      <span class="nav-item-icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
-      <span>${escapeHtml(item.label)}</span>
-    </a>`).join("");
+  const activeNavKey = document.body.dataset.navKey || document.body.dataset.view;
+  const sections = Array.from(new Set(items.map(item => item.section)));
+  nav.innerHTML = sections.map(section => {
+    const sectionItems = items.filter(item => item.section === section);
+    return `<span class="nav-section-label">${escapeHtml(section)}</span>${sectionItems.map(item => `
+      <a class="nav-item${item.navKey === activeNavKey ? " active" : ""}" data-view="${item.view}" data-nav-key="${item.navKey}" role="button" tabindex="0">
+        <span class="nav-item-icon" aria-hidden="true">${NAV_ICONS[item.icon] || ""}</span>
+        <span>${escapeHtml(item.label)}</span>
+      </a>`).join("")}`;
+  }).join("");
 
   nav.querySelectorAll(".nav-item").forEach(el => {
-    el.addEventListener("click", () => switchView(el.dataset.view));
+    el.addEventListener("click", () => switchView(el.dataset.view, el.dataset.navKey));
     el.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        switchView(el.dataset.view);
+        switchView(el.dataset.view, el.dataset.navKey);
       }
     });
   });
 }
 
-function switchView(viewId) {
-  $$("#sidebarNav .nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === viewId));
+function switchView(viewId, navKey = viewId) {
+  $$("#sidebarNav .nav-item").forEach(item => item.classList.toggle("active", item.dataset.navKey === navKey));
   $$(".view").forEach(view => view.classList.toggle("active", view.id === viewId));
   document.body.dataset.view = viewId;
+  document.body.dataset.navKey = navKey;
   setSidebarOpen(false);
 }
 
@@ -653,6 +705,7 @@ const depts = DELTA_H_DEPTS; // Ensure this is linked to the constant
 function renderAll() {
   renderApplicationForm();
   if (needsApplication(currentUser)) return;
+  renderDashboard();
   renderProfile();
   renderPreferenceForm();
   renderVolunteer();
@@ -759,6 +812,254 @@ function renderManagementOverview() {
     <article class="stat"><span>Approved volunteers</span><strong>${approvedCount}</strong></article>
     <article class="stat"><span>Created shifts</span><strong>${visibleShifts.length}</strong></article>
     <article class="stat"><span>Open shift spots</span><strong>${openSlots}</strong></article>
+  `;
+}
+
+// ─── View: Command Center Dashboard ──────────────────────────────
+// Real-data dashboard rendered into #dashboardContent. Management users see
+// the Command Center overview; non-management approved users see a personal,
+// user-level summary. Every value is derived from live session state
+// (users, shifts, hotelRooms, guestFlights, systemLogs) — no sample data.
+function renderDashboard() {
+  const container = $("#dashboardContent");
+  if (!container || !currentUser || needsApplication(currentUser)) return;
+  container.innerHTML = isManagementUser(currentUser)
+    ? managementDashboardHtml()
+    : volunteerDashboardHtml();
+  bindDashboardEvents();
+}
+
+function bindDashboardEvents() {
+  const container = $("#dashboardContent");
+  if (!container) return;
+  container.querySelectorAll("[data-dashboard-day]").forEach(button => {
+    button.addEventListener("click", () => setDashboardDay(button.dataset.dashboardDay));
+  });
+  const newShift = container.querySelector("#dashboardNewShiftBtn");
+  if (newShift) newShift.addEventListener("click", goToCreateShift);
+  const viewAll = container.querySelector("#dashboardViewAllBtn");
+  if (viewAll) viewAll.addEventListener("click", () => switchView("adminView"));
+}
+
+function setDashboardDay(day) {
+  // Toggle: clicking the active day clears the filter (back to all days).
+  dashboardDayFilter = dashboardDayFilter === day ? null : day;
+  renderDashboard();
+}
+
+function goToCreateShift() {
+  // Route management users to the real shift-creation workflow. The server
+  // independently authorizes create_shift, so this is navigation only.
+  if (!isManagementUser(currentUser)) return;
+  switchView("managementView");
+  const form = $("#createShiftForm");
+  if (form) {
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    const title = $("#newShiftTitle");
+    if (title) title.focus();
+  }
+}
+
+function dashboardScopedShifts() {
+  // Shifts rescoped by the active Command Center day filter (null = all).
+  if (!dashboardDayFilter) return shifts;
+  return shifts.filter(shift => (shift.day || shift.shift_day) === dashboardDayFilter);
+}
+
+function shiftAssignedUsers(shift) {
+  return users.filter(user => userHasShift(user, shift.id));
+}
+
+function dashboardDaySegmentHtml() {
+  return `<div class="segmented" id="dashboardDaySegment" role="group" aria-label="Filter dashboard by day">
+    ${DASHBOARD_DAYS.map(day => `
+      <button type="button" data-dashboard-day="${escapeHtml(day)}" class="${dashboardDayFilter === day ? "active" : ""}" aria-pressed="${dashboardDayFilter === day ? "true" : "false"}">${escapeHtml(day.slice(0, 3))}</button>
+    `).join("")}
+  </div>`;
+}
+
+function dashboardStatCardHtml(stat) {
+  return `<div class="stat-card ${stat.type || ""}">
+    <div class="stat-icon">${NAV_ICONS[stat.icon] || ""}</div>
+    <div class="stat-value">${escapeHtml(String(stat.value))}</div>
+    <div class="stat-label">${escapeHtml(stat.label)}</div>
+    <div class="stat-sub">${escapeHtml(stat.sub)}</div>
+  </div>`;
+}
+
+function dashboardLogTime(log) {
+  const raw = String(log.created_at || "");
+  const match = raw.match(/(\d{1,2}:\d{2})/);
+  return match ? match[1] : raw;
+}
+
+function dashboardLogEntryHtml(log) {
+  const actor = log.actor_name || "System";
+  const detail = log.details || log.action || "activity";
+  return `<div class="log-entry">
+    <span class="log-time">${escapeHtml(dashboardLogTime(log))}</span>
+    <span class="log-action"><strong>${escapeHtml(actor)}</strong> — ${escapeHtml(detail)}</span>
+  </div>`;
+}
+
+function dashboardDepartments(scopedShifts, approvedVolunteers) {
+  const set = new Set();
+  approvedVolunteers.forEach(user => {
+    const dept = userDepartment(user);
+    if (dept) set.add(dept);
+  });
+  scopedShifts.forEach(shift => {
+    if (shift.department) set.add(shift.department);
+  });
+  return Array.from(set).sort();
+}
+
+function managementDashboardHtml() {
+  const scopedShifts = dashboardScopedShifts();
+  const approvedVolunteers = users.filter(user => user.status === "approved");
+  const clockedIn = approvedVolunteers.filter(user => user.clockedIn).length;
+  const unassignedShifts = scopedShifts.filter(shift => shiftAssignedUsers(shift).length === 0).length;
+
+  const rooms = Array.isArray(hotelRooms) ? hotelRooms : [];
+  const occupiedRoomNames = new Set(
+    users.map(user => String(user.hotelRoom || "")).filter(Boolean)
+  );
+  const occupiedRooms = rooms.filter(room => occupiedRoomNames.has(String(room.room_name))).length;
+
+  const flights = Array.isArray(guestFlights) ? guestFlights : [];
+  const assignedFlights = flights.filter(flight => flight.assigned_user_id).length;
+
+  const dayLabel = dashboardDayFilter ? ` on ${dashboardDayFilter}` : "";
+
+  const stats = [
+    { value: approvedVolunteers.length, label: "Active Volunteers", sub: `${clockedIn} clocked in`, icon: "roster", type: "" },
+    { value: scopedShifts.length, label: "Total Shifts", sub: `${unassignedShifts} unassigned${dayLabel}`, icon: "shifts", type: "info" },
+    { value: occupiedRooms, label: "Rooms Occupied", sub: `${rooms.length} total room${rooms.length === 1 ? "" : "s"}`, icon: "hotels", type: "success" },
+    { value: flights.length, label: "Tracked Guests", sub: `${assignedFlights} with pickup`, icon: "guests", type: "warning" }
+  ];
+
+  const recentLogs = (Array.isArray(systemLogs) ? systemLogs : []).slice(0, 5);
+  const activityHtml = recentLogs.length
+    ? recentLogs.map(dashboardLogEntryHtml).join("")
+    : `<div class="empty-state"><p>No logged activity yet.</p></div>`;
+
+  const departments = dashboardDepartments(scopedShifts, approvedVolunteers);
+  const totalApproved = approvedVolunteers.length;
+  const deptHtml = departments.length
+    ? departments.map((dept, index) => {
+        const vols = approvedVolunteers.filter(user => userDepartment(user) === dept).length;
+        const deptShifts = scopedShifts.filter(shift => shift.department === dept).length;
+        const pct = totalApproved > 0 ? Math.round((vols / totalApproved) * 100) : 0;
+        const color = DASHBOARD_DEPT_COLORS[index % DASHBOARD_DEPT_COLORS.length];
+        return `<div class="dashboard-dept-row">
+          <div class="dashboard-dept-head">
+            <span class="font-semibold">${escapeHtml(dept)}</span>
+            <span class="text-dim">${vols} volunteer${vols === 1 ? "" : "s"} · ${deptShifts} shift${deptShifts === 1 ? "" : "s"}</span>
+          </div>
+          <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${color};"></div></div>
+        </div>`;
+      }).join("")
+    : `<div class="empty-state"><p>No departments to show yet.</p></div>`;
+
+  return `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Command Center</h1>
+        <p>Delta H Scheduling System — overview of all operations</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" id="dashboardNewShiftBtn" type="button">+ New Shift</button>
+        ${dashboardDaySegmentHtml()}
+      </div>
+    </div>
+    <div class="stat-grid">
+      ${stats.map(dashboardStatCardHtml).join("")}
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Activity</span>
+          <button class="btn btn-sm btn-ghost" id="dashboardViewAllBtn" type="button">View All</button>
+        </div>
+        <div class="card-body" style="padding:0;">${activityHtml}</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Department Overview</span>
+        </div>
+        <div class="card-body">${deptHtml}</div>
+      </div>
+    </div>
+  `;
+}
+
+function volunteerDashboardHtml() {
+  const firstName = escapeHtml((currentUser.name || "Volunteer").split(" ")[0]);
+  const dept = userDepartment(currentUser);
+  const assigned = shifts.filter(shift => userHasShift(currentUser, shift.id));
+  const scopedAssigned = dashboardDayFilter
+    ? assigned.filter(shift => (shift.day || shift.shift_day) === dashboardDayFilter)
+    : assigned;
+  const totalHours = assigned.reduce((sum, shift) => sum + Number(shift.hours || 0), 0);
+  const daysWorked = new Set(assigned.map(shift => shift.day || shift.shift_day).filter(Boolean));
+  const deptShifts = shifts.filter(shift => !dept || shift.department === dept);
+
+  const stats = [
+    { value: assigned.length, label: "My Shifts", sub: "Saved to your schedule", icon: "myShifts", type: "" },
+    { value: totalHours, label: "Total Hours", sub: `${daysWorked.size} day${daysWorked.size === 1 ? "" : "s"} working`, icon: "shifts", type: "success" },
+    { value: daysWorked.size, label: "Days Working", sub: daysWorked.size ? "Meals covered" : "No shifts yet", icon: "profile", type: "info" },
+    { value: deptShifts.length, label: dept ? `${dept} Shifts` : "Department Shifts", sub: "In your department", icon: "manage", type: "warning" }
+  ];
+
+  const upcomingHtml = scopedAssigned.length
+    ? scopedAssigned.map(shift => `
+        <div class="log-entry">
+          <span class="log-action">
+            <strong>${escapeHtml(shift.title)}</strong>
+            <span class="text-dim"> — ${escapeHtml(shift.day || shift.shift_day)}, ${escapeHtml(shift.time || shift.shift_time)}</span>
+          </span>
+          <span class="badge">${escapeHtml(String(shift.hours))} h</span>
+        </div>
+      `).join("")
+    : `<div class="empty-state"><p>No shifts saved yet. Open Volunteer to pick up shifts.</p></div>`;
+
+  const mealHtml = DASHBOARD_DAYS.map(day => {
+    const works = assigned.some(shift => (shift.day || shift.shift_day) === day);
+    return `<div class="dashboard-dept-row dashboard-meal-row">
+      <span class="font-semibold">${escapeHtml(day)}</span>
+      ${works
+        ? `<span class="badge" style="background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.3);color:#34d399;">Meals covered</span>`
+        : `<span class="badge">Not working</span>`}
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Welcome, ${firstName}</h1>
+        <p>Your volunteer dashboard</p>
+      </div>
+      <div class="page-actions">
+        ${dashboardDaySegmentHtml()}
+      </div>
+    </div>
+    <div class="stat-grid">
+      ${stats.map(dashboardStatCardHtml).join("")}
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Upcoming Shifts</span>
+        </div>
+        <div class="card-body" style="padding:0;">${upcomingHtml}</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Meal Eligibility</span>
+        </div>
+        <div class="card-body">${mealHtml}</div>
+      </div>
+    </div>
   `;
 }
 

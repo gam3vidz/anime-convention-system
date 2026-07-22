@@ -1368,21 +1368,10 @@ body.logged-in main.main-content {
   box-shadow: var(--shadow-glow);
 }
 
-.app-header {
-  position: fixed;
-  inset: 0 auto 0 0;
-  width: var(--sidebar-w);
-  height: 100vh;
-  padding: 24px 18px;
-  background: rgba(15, 17, 23, .92);
-  border-right: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(18px);
-  flex-direction: column;
-  align-items: stretch;
-  gap: 24px;
-  z-index: 100;
-}
+/* NOTE: the old fixed `.app-header` left rail was removed — the app shell
+   uses the Pages `.sidebar` + `.main-content` (margin-left: var(--sidebar-w))
+   layout, so a second fixed, sidebar-width, z-index:100 panel would have
+   rendered on top of / underneath the real content. */
 
 .brand-block {
   display: grid;
@@ -2187,27 +2176,12 @@ dialog::backdrop {
 }
 
 @media (max-width: 900px) {
-  :root { --sidebar-w: 0px; }
-
-  body.logged-in {
-    padding-left: 0;
-  }
-
-  .app-header {
-    position: sticky;
-    top: 0;
-    width: 100%;
-    height: auto;
-    padding: 14px;
-    flex-direction: column;
-  }
-
+  /* The Pages base collapses the sidebar to an off-canvas drawer at 768px
+     (--sidebar-w -> 0 there). The old 900px override that zeroed the sidebar
+     width early and re-padded <main> fought that single breakpoint, so it was
+     removed; the fixed 248px sidebar now holds until the Pages 768px drawer. */
   .tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  body.logged-in main {
-    padding: 18px 14px 28px;
   }
 
   .profile-row {
@@ -2265,17 +2239,6 @@ dialog::backdrop {
   --safety-border: rgba(245, 158, 11, .32);
   --critical: #fb7185;
   --critical-soft: rgba(251, 113, 133, .12);
-}
-
-.app-header::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 15% 5%, rgba(99, 102, 241, .18), transparent 28%),
-    linear-gradient(180deg, rgba(255,255,255,.018), transparent 40%);
 }
 
 .brand-mark {
@@ -3237,27 +3200,72 @@ a:focus-visible {
 /* ─── Dynamic sidebar nav (populated by core.js into the Pages
        #sidebarNav) — letter badge stands in for the Pages nav svg,
        without altering the base .nav-item layout. ─── */
+/* SVG nav glyphs (ported from the canonical Pages NAV_ICONS). The icon is a
+   plain, transparent wrapper so the stroke inherits the nav-item text color
+   (base .nav-item svg already sizes/opacities it). */
 .nav-item-icon {
   width: 20px;
   height: 20px;
-  border-radius: 6px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-2);
-  color: var(--text-3);
-  font-size: .72rem;
-  font-weight: 800;
-  transition: background var(--t-fast), color var(--t-fast);
+  color: inherit;
 }
-.nav-item.active .nav-item-icon {
-  background: rgba(255, 255, 255, .18);
-  color: #fff;
+.nav-item-icon svg {
+  width: 20px;
+  height: 20px;
 }
 .nav-item:focus-visible {
   outline: 2px solid var(--brand-1);
   outline-offset: 2px;
+}
+
+/* Accessible-hidden heading utility (used to label the dashboard region
+   while the visible title is drawn by renderDashboard()). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ─── Command Center dashboard — Department Overview / Meal rows ───
+   The dashboard reuses the Pages stat-card / grid-2 / card / progress /
+   log-entry components; these rows only add the small progress-bar layout. */
+.dashboard-dept-row { margin-bottom: 16px; }
+.dashboard-dept-row:last-child { margin-bottom: 0; }
+.dashboard-dept-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: .85rem;
+  margin-bottom: 6px;
+}
+.dashboard-meal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+.dashboard-meal-row:last-child { border-bottom: none; }
+
+/* Preserve the generous, full-height Command Center lower panels from the
+   supplied reference even when a new convention has only a few log rows. */
+#dashboardContent .grid-2 > .card { min-height: 430px; }
+
+@media (max-width: 900px) {
+  #dashboardContent .grid-2 > .card { min-height: 280px; }
 }
 
 /* Give the Pages user-mini avatar its brand fill (JS also sets the

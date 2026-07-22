@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=41" />
+    <link rel="stylesheet" href="styles.css?v=42" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -118,6 +118,15 @@
       <main class="main-content" id="mainContent">
       <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-controls="sidebar" aria-expanded="false">☰ Menu</button>
       <div id="viewContainer">
+      <section id="dashboardView" class="view" aria-labelledby="dashboardTitle">
+        <h2 id="dashboardTitle" class="visually-hidden">Dashboard</h2>
+        <!-- Command Center / volunteer summary is rendered by renderDashboard()
+             into this container using the Pages dashboard structural classes
+             (page-header, stat-grid, stat-card, grid-2, card, log-entry,
+             progress). All values are real session data. -->
+        <div id="dashboardContent"></div>
+      </section>
+
       <section id="applicationView" class="view" aria-labelledby="applicationTitle">
         <div class="page-heading">
           <div>
@@ -1071,6 +1080,6 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=41"></script>
+    <script src="core.js?v=42"></script>
   </body>
 </html>

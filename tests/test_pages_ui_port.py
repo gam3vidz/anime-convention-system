@@ -149,6 +149,152 @@ class PagesUiPortTests(unittest.TestCase):
         ):
             self.assertIn(control, self.html, f"missing control {control}")
 
+    # ── (c) Command Center dashboard — static region ────────────────
+    def test_dashboard_view_region_present(self):
+        # A static #dashboardView region lives under #viewContainer and hosts
+        # the JS-rendered dashboard content.
+        self.assertIn('id="dashboardView"', self.html)
+        self.assertIn('id="dashboardContent"', self.html)
+        container_idx = self.html.index('id="viewContainer"')
+        dashboard_idx = self.html.index('id="dashboardView"')
+        self.assertGreater(dashboard_idx, container_idx,
+                           "#dashboardView must sit under #viewContainer")
+        # It is a real view section so switchView can activate it.
+        self.assertRegex(
+            self.html,
+            re.compile(r'id="dashboardView"[^>]*class="view"', re.S),
+        )
+
+    # ── (c) Command Center dashboard — real-data renderer ───────────
+    def test_dashboard_renderer_uses_pages_structural_classes(self):
+        # The renderer emits the exact Pages dashboard structural regions.
+        self.assertIn("function renderDashboard(", self.js)
+        for token in (
+            "Command Center",
+            "page-header",
+            "page-title-group",
+            "page-actions",
+            "stat-grid",
+            "stat-card",
+            "stat-value",
+            "stat-label",
+            "stat-sub",
+            "grid-2",
+            "card-header",
+            "card-title",
+            "log-entry",
+            "progress-fill",
+            "segmented",
+        ):
+            self.assertIn(token, self.js, f"dashboard missing Pages class/region: {token}")
+
+    def test_dashboard_metrics_in_screenshot_order(self):
+        # Active Volunteers → Total Shifts → Rooms Occupied → Tracked Guests.
+        self.assertRegex(
+            self.js,
+            re.compile(
+                r'"Active Volunteers".*?"Total Shifts".*?"Rooms Occupied".*?"Tracked Guests"',
+                re.S,
+            ),
+        )
+
+    def test_dashboard_uses_real_session_data_only(self):
+        # The renderer derives everything from live session collections.
+        renderer = self.js[self.js.index("function renderDashboard("):]
+        for source in ("users", "shifts", "hotelRooms", "guestFlights", "systemLogs"):
+            self.assertIn(source, renderer, f"dashboard ignores real source: {source}")
+        # External data flows through escapeHtml.
+        self.assertIn("escapeHtml", renderer)
+        # No canonical mock/demo values leaked into the port.
+        for mock in (
+            "Sarah Chen",
+            "Marcus Reid",
+            "Priya Patel",
+            "DL1247",
+            "LOG_ENTRIES",
+            "VOLUNTEERS",
+            "AVATAR_GRADIENTS",
+            "(demo)",
+            "schedule_template",
+            "showToast",
+        ):
+            self.assertNotIn(mock, self.js, f"mock/demo value leaked: {mock}")
+
+    def test_dashboard_day_filter_is_real_state_without_toast(self):
+        self.assertIn("let dashboardDayFilter", self.js)
+        self.assertIn("const DASHBOARD_DAYS", self.js)
+        self.assertIn("function setDashboardDay(", self.js)
+        # The filter re-renders real content; it must not fake a toast/dialog.
+        setter = self.js[self.js.index("function setDashboardDay("):]
+        setter = setter[: setter.index("\n}")]
+        self.assertIn("renderDashboard()", setter)
+        self.assertNotIn("showDialog", setter)
+
+    # ── (c) sidebar default + SVG icons ─────────────────────────────
+    def test_dashboard_is_default_view_and_first_nav_item(self):
+        # Approved users default to the dashboard.
+        self.assertIn('switchView("dashboardView")', self.js)
+        # Dashboard is the first sidebar item.
+        nav = self.js[self.js.index("const SIDEBAR_NAV_ITEMS"):]
+        nav = nav[: nav.index("];")]
+        first_item = nav[: nav.index("},")]
+        self.assertIn('view: "dashboardView"', first_item)
+        # Capability filtering + server authority is preserved.
+        self.assertIn("item.show(currentUser)", self.js)
+        self.assertIn("isManagementUser(user)", self.js)
+        self.assertIn("isFullAdmin(user)", self.js)
+
+    def test_sidebar_uses_canonical_svg_icons_not_letter_badges(self):
+        self.assertIn("const NAV_ICONS", self.js)
+        self.assertIn("<svg", self.js)
+        # Nav renders SVG glyphs, not escaped letter badges.
+        self.assertIn("NAV_ICONS[item.icon]", self.js)
+        self.assertNotIn("escapeHtml(item.icon)", self.js)
+        # The old single-letter icons are gone from the nav model.
+        nav = self.js[self.js.index("const SIDEBAR_NAV_ITEMS"):]
+        nav = nav[: nav.index("];")]
+        self.assertNotRegex(nav, re.compile(r'icon:\s*"[A-Z]"'))
+
+    def test_sidebar_uses_reference_volunteer_and_management_groups(self):
+        for token in (
+            'section: "Volunteer"', 'section: "Management"',
+            'label: "My Profile"', 'label: "Availability"',
+            'label: "Shift Board"', 'label: "My Shifts"',
+            'label: "Manage Shifts"', 'label: "Volunteer Roster"',
+            'label: "Food & Counts"', 'label: "Hotels"',
+            'label: "Guest Relations"', 'label: "System Log"',
+            'data-nav-key', 'dataset.navKey',
+        ):
+            self.assertIn(token, self.js)
+
+    def test_dashboard_lower_panels_keep_reference_height(self):
+        self.assertIn('#dashboardContent .grid-2 > .card', self.css)
+        self.assertIn('min-height: 430px', self.css)
+
+    # ── (c) + New Shift authorization + View All routing ────────────
+    def test_new_shift_is_management_only_and_routes_to_workflow(self):
+        # The button only exists in the management dashboard branch.
+        mgmt = self.js[self.js.index("function managementDashboardHtml("):]
+        mgmt = mgmt[: mgmt.index("\nfunction ")]
+        self.assertIn("dashboardNewShiftBtn", mgmt)
+        vol = self.js[self.js.index("function volunteerDashboardHtml("):]
+        vol = vol[: vol.index("\nfunction ")]
+        self.assertNotIn("dashboardNewShiftBtn", vol)
+        # Routing guards on management and reuses the real create-shift form.
+        goto = self.js[self.js.index("function goToCreateShift("):]
+        goto = goto[: goto.index("\n}")]
+        self.assertIn("isManagementUser(currentUser)", goto)
+        self.assertIn('switchView("managementView")', goto)
+        self.assertIn("#createShiftForm", goto)
+
+    def test_view_all_routes_to_existing_system_log_view(self):
+        self.assertIn("dashboardViewAllBtn", self.js)
+        self.assertIn('switchView("adminView")', self.js)
+        # #systemLogList (the System Log) really lives in that view.
+        admin_idx = self.html.index('id="adminView"')
+        log_idx = self.html.index('id="systemLogList"')
+        self.assertGreater(log_idx, admin_idx)
+
 
 if __name__ == "__main__":
     unittest.main()
