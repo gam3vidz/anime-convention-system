@@ -3,6 +3,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^(tests|scripts|migrations|docs|\.github)(/|$) - [F,L,NC]
+  RewriteRule ^api/config\.php$ - [F,L,NC]
   RewriteRule ^api/discord-callback\.php$ api/api.php?action=discord_callback [L,QSA]
   RewriteRule ^api/discord-interactions\.php$ api/api.php?action=discord_interactions [L,QSA]
 </IfModule>

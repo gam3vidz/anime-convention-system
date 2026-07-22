@@ -99,6 +99,7 @@ class ReleaseSecurityTests(unittest.TestCase):
         self.assertIn("config\\.php", htaccess)
         self.assertIn("\\.(sql|", htaccess)
         self.assertIn("^(tests|scripts|migrations|docs|\\.github)", htaccess)
+        self.assertIn("^api/config\\.php$", htaccess)
         self.assertIn("X-Content-Type-Options", htaccess)
         self.assertIn("Content-Security-Policy", htaccess)
         self.assertIn('^config\\.php$', api_htaccess)
