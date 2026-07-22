@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=43" />
+    <link rel="stylesheet" href="styles.css?v=44" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -1073,6 +1073,18 @@
           <button id="volunteerProfileBlacklistToggle" class="danger-button" type="button">Blacklist access</button>
         </div>
 
+        <section class="volunteer-time-clock" aria-labelledby="volunteerProfileClockTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Discord time clock</p>
+              <h3 id="volunteerProfileClockTitle">On-duty record</h3>
+            </div>
+            <span id="volunteerProfileClockStatus" class="badge badge-neutral" aria-live="polite">Off duty</span>
+          </div>
+          <div id="volunteerProfileClockSummary" class="volunteer-time-clock-summary" aria-live="polite"></div>
+          <div id="volunteerProfileClockLedger" class="volunteer-time-clock-ledger" aria-live="polite"></div>
+        </section>
+
         <div class="volunteer-profile-grid">
           <form id="volunteerProfileForm" class="profile-summary-form">
             <label>Strengths
@@ -1128,6 +1140,6 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=43"></script>
+    <script src="core.js?v=44"></script>
   </body>
 </html>

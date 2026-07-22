@@ -3070,6 +3070,45 @@ a:focus-visible {
 .profile-note-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .profile-recommendation { max-width: 145px; margin-top: 7px; color: var(--text-2); font-size: .67rem; line-height: 1.25; }
 
+/* Discord clock ledger in the management-only volunteer profile. */
+.volunteer-time-clock {
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: linear-gradient(135deg, rgba(99,102,241,.09), transparent 45%), var(--bg-2);
+}
+.volunteer-time-clock-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.volunteer-time-clock-summary span {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  background: rgba(15,17,23,.32);
+  font-size: .82rem;
+}
+.volunteer-time-clock-summary strong { color: var(--text-3); font-size: .67rem; letter-spacing: .06em; text-transform: uppercase; }
+.volunteer-time-clock-ledger { display: grid; gap: 8px; max-height: 280px; overflow: auto; }
+.volunteer-time-clock-entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+.volunteer-time-clock-entry:last-child { border-bottom: 0; }
+.volunteer-time-clock-entry div { display: grid; gap: 3px; min-width: 0; }
+.volunteer-time-clock-entry div:last-child { text-align: right; }
+.volunteer-time-clock-entry small { color: var(--text-3); font-size: .72rem; }
+.volunteer-time-clock-entry span { color: #a5b4fc; font-family: 'JetBrains Mono', monospace; font-size: .78rem; }
+
 /* Vendor Hall booth map */
 .vendor-hall-summary {
   color: var(--text-2);
@@ -3195,6 +3234,9 @@ a:focus-visible {
   .volunteer-profile-grid { grid-template-columns: 1fr; }
   .profile-note-column { padding-left: 0; padding-top: 20px; border-left: 0; border-top: 1px solid var(--border); }
   .profile-note-controls { grid-template-columns: 1fr; }
+  .volunteer-time-clock-summary { grid-template-columns: 1fr; }
+  .volunteer-time-clock-entry { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .volunteer-time-clock-entry div:last-child { text-align: left; }
 }
 
 /* ─── Dynamic sidebar nav (populated by core.js into the Pages

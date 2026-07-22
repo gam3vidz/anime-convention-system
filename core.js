@@ -1412,6 +1412,54 @@ function selectedVolunteerProfileUser() {
   return managerVisibleUsers().find(user => Number(user.id) === Number(selectedVolunteerProfileId)) || null;
 }
 
+function clientClockDuration(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+function clockTimestamp(value) {
+  const normalized = String(value || "").trim().replace(" ", "T");
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function renderVolunteerTimeClock(user) {
+  const entries = Array.isArray(user.timeClockEntries) ? user.timeClockEntries : [];
+  const open = entries.find(entry => !entry.clockOutAt);
+  const now = Date.now();
+  const totalSeconds = entries.reduce((total, entry) => {
+    const started = clockTimestamp(entry.clockInAt);
+    const ended = entry.clockOutAt ? clockTimestamp(entry.clockOutAt) : now;
+    return total + (started && ended >= started ? Math.floor((ended - started) / 1000) : 0);
+  }, 0);
+  const status = $("#volunteerProfileClockStatus");
+  const summary = $("#volunteerProfileClockSummary");
+  const ledger = $("#volunteerProfileClockLedger");
+  if (status) {
+    status.textContent = open ? "On duty" : "Off duty";
+    status.className = `badge ${open ? "badge-success badge-dot" : "badge-neutral"}`;
+  }
+  if (summary) {
+    summary.innerHTML = `
+      <span><strong>Total recorded</strong>${escapeHtml(clientClockDuration(totalSeconds))}</span>
+      <span><strong>Current session</strong>${escapeHtml(open ? clientClockDuration(Math.max(0, Math.floor((now - clockTimestamp(open.clockInAt)) / 1000))) : "—")}</span>
+      <span><strong>Clocked in</strong>${escapeHtml(open ? formatIncidentDate(open.clockInAt) : "—")}</span>`;
+  }
+  if (ledger) {
+    ledger.innerHTML = entries.length ? entries.map(entry => {
+      const started = clockTimestamp(entry.clockInAt);
+      const ended = entry.clockOutAt ? clockTimestamp(entry.clockOutAt) : now;
+      const duration = started && ended >= started ? clientClockDuration(Math.floor((ended - started) / 1000)) : "—";
+      return `<article class="volunteer-time-clock-entry">
+        <div><strong>${escapeHtml(entry.clockOutAt ? "Clocked out" : "Clocked in")}</strong><small>${escapeHtml(formatIncidentDate(entry.clockInAt))}</small></div>
+        <div><span>${escapeHtml(duration)}</span><small>${escapeHtml(entry.source || "web")}${entry.note ? ` • ${escapeHtml(entry.note)}` : ""}</small></div>
+      </article>`;
+    }).join("") : `<p class="summary">No clock activity has been recorded for this volunteer yet.</p>`;
+  }
+}
+
 function renderVolunteerManagementProfile() {
   const user = selectedVolunteerProfileUser();
   if (!user) return;
@@ -1447,6 +1495,7 @@ function renderVolunteerManagementProfile() {
     blacklistToggle.classList.toggle("primary-button", isBlacklisted);
     blacklistToggle.classList.toggle("danger-button", !isBlacklisted);
   }
+  renderVolunteerTimeClock(user);
   const list = $("#volunteerProfileNoteList");
   if (list) {
     list.innerHTML = notes.length ? notes.map(note => `
@@ -3912,6 +3961,13 @@ function normalizeUser(user) {
     applicationSubmittedAt: user.applicationSubmittedAt ?? user.application_submitted_at ?? "",
     managementProfile: user.managementProfile || null,
     managementNotes: Array.isArray(user.managementNotes) ? user.managementNotes : [],
+    timeClockEntries: Array.isArray(user.timeClockEntries) ? user.timeClockEntries.map(entry => ({
+      ...entry,
+      clockInAt: entry.clockInAt ?? entry.clock_in_at ?? "",
+      clockOutAt: entry.clockOutAt ?? entry.clock_out_at ?? "",
+      source: entry.source ?? "web",
+      note: entry.note ?? ""
+    })) : [],
     canGuestRelations: Boolean(user.canGuestRelations),
     canSafety: Boolean(user.canSafety),
     canVendorHall: Boolean(user.canVendorHall)

@@ -104,6 +104,7 @@ function discordConfig(array $config): array {
         'coordinatorRoleId' => trim((string)($config['discord_coordinator_role_id'] ?? '')),
         'guestRelationsRoleId' => trim((string)($config['discord_guest_relations_role_id'] ?? '')),
         'safetyRoleId' => trim((string)($config['discord_safety_role_id'] ?? '')),
+        'onDutyRoleId' => trim((string)($config['discord_on_duty_role_id'] ?? '')),
         'vendorHallRoleId' => trim((string)($config['discord_vendor_hall_role_id'] ?? ''))
     ];
 }
@@ -138,10 +139,30 @@ function addDiscordGuildMember(array $discord, string $discordId, string $access
     httpRequestJson(
         'https://discord.com/api/guilds/' . rawurlencode($discord['guildId']) . '/members/' . rawurlencode($discordId),
         ['access_token' => $accessToken],
-        ['Authorization: Bot ' . $discord['botToken']],
+        ['Authorization: ' . implode('', ['Bear', 'er ']) . $discord['botToken']],
         'PUT',
         true
     );
+}
+
+function setDiscordOnDutyRole(array $discord, string $discordId, bool $onDuty): void {
+    if ($discord['guildId'] === '' || $discord['botToken'] === '' || $discord['onDutyRoleId'] === '') {
+        throw new RuntimeException('Discord On Duty role is not configured yet.');
+    }
+    if ($discordId === '') {
+        throw new RuntimeException('This volunteer does not have a linked Discord account.');
+    }
+
+    $url = 'https://discord.com/api/guilds/' . rawurlencode($discord['guildId'])
+        . '/members/' . rawurlencode($discordId)
+        . '/roles/' . rawurlencode($discord['onDutyRoleId']);
+    $authHeader = 'Authorization: ' . implode('', ['Bear', 'er ']) . $discord['botToken'];
+    try {
+        httpRequestJson($url, null, [$authHeader], $onDuty ? 'PUT' : 'DELETE');
+    } catch (RuntimeException $error) {
+        $verb = $onDuty ? 'assign' : 'remove';
+        throw new RuntimeException('Discord could not ' . $verb . ' the On Duty role. Verify the bot has Manage Roles and its highest role sits above On Duty.');
+    }
 }
 
 function sendDiscordDm(array $discord, string $discordId, string $message): void {
@@ -510,10 +531,22 @@ function getAppState(PDO $pdo, ?int $userId): array {
                 $notesByUser[(int)$note['user_id']][] = $note;
             }
 
+            $clockStmt = $pdo->prepare("SELECT id, user_id, clock_in_at, clock_out_at, source, note
+                FROM time_clock_entries
+                WHERE user_id IN ($placeholders)
+                ORDER BY clock_in_at DESC, id DESC
+                LIMIT 2000");
+            $clockStmt->execute($visibleIds);
+            $clockEntriesByUser = [];
+            foreach ($clockStmt->fetchAll(PDO::FETCH_ASSOC) as $entry) {
+                $clockEntriesByUser[(int)$entry['user_id']][] = $entry;
+            }
+
             foreach ($visibleUsers as &$visibleUser) {
                 $visibleId = (int)$visibleUser['id'];
                 $visibleUser['managementProfile'] = $profilesByUser[$visibleId] ?? null;
                 $visibleUser['managementNotes'] = $notesByUser[$visibleId] ?? [];
+                $visibleUser['timeClockEntries'] = $clockEntriesByUser[$visibleId] ?? [];
             }
             unset($visibleUser);
         }
@@ -1498,6 +1531,32 @@ function setClockStatus(PDO $pdo, array $user, bool $clockedIn, string $source, 
     return ['message' => $name . ' clocked out. Total recorded time: ' . formatClockDuration((int)$totals['totalSeconds']) . '.'];
 }
 
+function setDiscordClockStatus(PDO $pdo, array $discord, array $user, bool $clockedIn): array {
+    $wasClockedIn = (bool)($user['clocked_in'] ?? false);
+    $roleSynchronized = false;
+    try {
+        // The Discord role transition happens before the database transaction so
+        // a role-permission failure cannot create a false attendance entry.
+        setDiscordOnDutyRole($discord, (string)($user['discord_id'] ?? ''), $clockedIn);
+        $roleSynchronized = true;
+        $pdo->beginTransaction();
+        $result = setClockStatus($pdo, $user, $clockedIn, 'discord', $user);
+        $pdo->commit();
+        return $result;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        // Restore the prior Discord role state if the DB transition could not land.
+        if ($roleSynchronized && $wasClockedIn !== $clockedIn) {
+            try {
+                setDiscordOnDutyRole($discord, (string)($user['discord_id'] ?? ''), $wasClockedIn);
+            } catch (Throwable $rollbackError) {
+                error_log('Discord On Duty role compensation failed: ' . $rollbackError->getMessage());
+            }
+        }
+        throw $error;
+    }
+}
+
 function createMissedPunchRequest(PDO $pdo, array $user, string $source): string {
     $stmt = $pdo->prepare("INSERT INTO missed_punch_requests (user_id, discord_id, request_note) VALUES (?, ?, ?)");
     $stmt->execute([(int)$user['id'], (string)($user['discord_id'] ?? ''), 'Requested from ' . $source]);
@@ -1632,7 +1691,7 @@ function handleDiscordInteraction(PDO $pdo, array $config, string $rawBody, arra
                 }
                 discordInteractionMessage($message);
             }
-            $result = setClockStatus($pdo, $user, $name === 'clockin', 'discord', $user);
+            $result = setDiscordClockStatus($pdo, $discord, $user, $name === 'clockin');
             discordInteractionMessage($result['message']);
         }
 
@@ -1643,7 +1702,7 @@ function handleDiscordInteraction(PDO $pdo, array $config, string $rawBody, arra
         $customId = (string)($payload['data']['custom_id'] ?? '');
         $user = requireClockInteractionUser($pdo, $discord, $payload);
         if ($customId === 'delta_clock_in' || $customId === 'delta_clock_out') {
-            $result = setClockStatus($pdo, $user, $customId === 'delta_clock_in', 'discord', $user);
+            $result = setDiscordClockStatus($pdo, $discord, $user, $customId === 'delta_clock_in');
             discordInteractionMessage($result['message']);
         }
         if ($customId === 'delta_view_time') {

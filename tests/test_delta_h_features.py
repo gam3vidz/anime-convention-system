@@ -131,8 +131,8 @@ class ManagementPortalTests(unittest.TestCase):
             ".volunteer-profile-access-state.is-blacklisted",
         ):
             self.assertIn(marker, self.css)
-        self.assertIn("styles.css?v=43", self.html)
-        self.assertIn("core.js?v=43", self.html)
+        self.assertIn("styles.css?v=44", self.html)
+        self.assertIn("core.js?v=44", self.html)
         self.assertIn("grid-template-columns: repeat(12, minmax(48px, 1fr));", self.css)
         self.assertIn("grid-template-columns: repeat(4, minmax(60px, 1fr));", self.css)
         self.assertNotIn("V0 COMMAND CENTER SHELL + ROSTER HANDOUTS", self.css)
@@ -141,6 +141,51 @@ class ManagementPortalTests(unittest.TestCase):
         self.assertNotIn(".tabs,\n  .stats-grid,", self.css)
         self.assertRegex(self.css, r"(?s)#vendorHallForm\s*\{[^}]*grid-template-columns:\s*1fr")
         self.assertRegex(self.css, r"@media\s*\(max-width:\s*(?:760|768|800)px\)")
+
+
+class DiscordTimeClockTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.api = (ROOT / "api/api.php").read_text(encoding="utf-8")
+        cls.schema = (ROOT / "api/schema.php").read_text(encoding="utf-8")
+        cls.config = (ROOT / "api/config.example.php").read_text(encoding="utf-8")
+        cls.html = (ROOT / "index.html").read_text(encoding="utf-8")
+        cls.client = (ROOT / "core.js").read_text(encoding="utf-8")
+
+    def test_on_duty_role_and_atomic_discord_wrapper_are_configured(self):
+        self.assertIn("discord_on_duty_role_id", self.config)
+        self.assertIn("'onDutyRoleId'", self.api)
+        self.assertIn("function setDiscordOnDutyRole", self.api)
+        wrapper = php_function(self.api, "setDiscordClockStatus")
+        self.assertIn("setDiscordOnDutyRole", wrapper)
+        self.assertIn("$pdo->beginTransaction()", wrapper)
+        self.assertIn("$pdo->rollBack()", wrapper)
+        self.assertIn("setClockStatus($pdo, $user, $clockedIn, 'discord'", wrapper)
+        self.assertIn("Manage Roles", self.api)
+
+    def test_discord_commands_and_buttons_use_role_synced_clock_path(self):
+        interactions = php_function(self.api, "handleDiscordInteraction")
+        self.assertEqual(interactions.count("setDiscordClockStatus($pdo, $discord, $user"), 2)
+        self.assertIn("delta_clock_in", interactions)
+        self.assertIn("delta_clock_out", interactions)
+        self.assertIn("delta_view_time", interactions)
+        self.assertIn("'clock-panel'", interactions)
+
+    def test_time_entries_are_scope_loaded_for_management_profiles(self):
+        self.assertIn("CREATE TABLE IF NOT EXISTS time_clock_entries", self.schema)
+        self.assertIn("WHERE user_id IN ($placeholders)", self.api)
+        self.assertIn("$visibleUser['timeClockEntries']", self.api)
+        self.assertIn("timeClockEntries", self.client)
+
+    def test_management_profile_renders_time_clock_ledger(self):
+        for marker in (
+            'id="volunteerProfileClockStatus"',
+            'id="volunteerProfileClockSummary"',
+            'id="volunteerProfileClockLedger"',
+        ):
+            self.assertIn(marker, self.html)
+        self.assertIn("renderVolunteerTimeClock", self.client)
+        self.assertIn("escapeHtml(entry.source", self.client)
 
 
 class SessionAndErrorHardeningTests(unittest.TestCase):

@@ -18,6 +18,8 @@ return [
     'discord_coordinator_role_id' => 'CHANGE_ME',
     'discord_guest_relations_role_id' => 'CHANGE_ME',
     'discord_safety_role_id' => 'CHANGE_ME',
+    // Temporary role assigned only while a volunteer is clocked in through Discord.
+    'discord_on_duty_role_id' => '',
     // Optional: grants access to the Vendor Hall portal only. Leave blank to deny non-admins (fail closed).
     'discord_vendor_hall_role_id' => '',
 
