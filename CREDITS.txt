@@ -9,3 +9,5 @@ https://github.com/AnimeNL/volunteer-manager
 MIT License
 
 No AnimeNL branding is used in the Delta H Scheduling System.
+
+Login animation: user-provided GIF asset (2026-07-22), preserved unchanged.
