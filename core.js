@@ -178,7 +178,7 @@ function bindEvents() {
         throw new Error("Choose at least one day you are available to volunteer.");
       }
       if (!availabilityHasAny(availability)) {
-        throw new Error("Choose at least one available time block.");
+        throw new Error("Choose All day or enter a valid start and end time for at least one day.");
       }
       updateSignupFlow();
       const data = await apiRequest("save_application", {
@@ -642,20 +642,68 @@ function renderApplicationDayOptions() {
 function renderAvailabilityPicker(selector, scope) {
   const container = $(selector);
   if (!container) return;
-
   container.innerHTML = AVAILABILITY_DAYS.map(day => `
-    <article class="availability-day">
-      <h4>${escapeHtml(day)}</h4>
-      <div class="availability-options">
-        ${AVAILABILITY_HOURS.map(hour => `
-          <label class="check-row">
-            <input type="checkbox" data-availability-scope="${scope}" data-availability-day="${day}" value="${hour}">
-            <span>${hour}</span>
-          </label>
-        `).join("")}
+    <article class="availability-day availability-range-day" data-availability-range-day="${day}">
+      <div class="availability-day-heading">
+        <h4>${escapeHtml(day)}</h4>
+        <label class="check-row availability-all-day-option">
+          <input type="checkbox" data-availability-all-day data-availability-scope="${scope}" data-availability-day="${day}">
+          <span>All day</span>
+        </label>
+      </div>
+      <div class="availability-range-fields">
+        <label>From<input type="time" data-availability-start data-availability-scope="${scope}" data-availability-day="${day}" value="09:00"></label>
+        <label>Until<input type="time" data-availability-end data-availability-scope="${scope}" data-availability-day="${day}" value="17:00"></label>
       </div>
     </article>
   `).join("");
+  container.querySelectorAll('[data-availability-all-day]').forEach(input => {
+    input.addEventListener('change', () => syncAvailabilityRangeInputs(scope, input.dataset.availabilityDay));
+  });
+  container.querySelectorAll('[data-availability-start], [data-availability-end]').forEach(input => {
+    input.addEventListener('change', () => {
+      const allDay = availabilityRangeInput(scope, input.dataset.availabilityDay, 'all-day');
+      if (allDay) allDay.checked = false;
+      syncAvailabilityRangeInputs(scope, input.dataset.availabilityDay);
+      if (scope === 'apply') updateSignupFlow();
+    });
+  });
+}
+
+function availabilityRangeInput(scope, day, kind) {
+  return $(`[data-availability-${kind}][data-availability-scope="${scope}"][data-availability-day="${day}"]`);
+}
+
+function availabilityRangeFromInputs(scope, day) {
+  const allDay = availabilityRangeInput(scope, day, 'all-day');
+  if (allDay?.checked) return { allDay: true, start: '00:00', end: '23:59' };
+  const start = availabilityRangeInput(scope, day, 'start')?.value || '';
+  const end = availabilityRangeInput(scope, day, 'end')?.value || '';
+  if (!start || !end || end <= start) return null;
+  return { allDay: false, start, end };
+}
+
+function syncAvailabilityRangeInputs(scope, day) {
+  const allDay = availabilityRangeInput(scope, day, 'all-day');
+  const start = availabilityRangeInput(scope, day, 'start');
+  const end = availabilityRangeInput(scope, day, 'end');
+  const disabled = Boolean(allDay?.checked);
+  if (start) start.disabled = disabled;
+  if (end) end.disabled = disabled;
+}
+
+function setAvailabilityPickerValues(scope, availability) {
+  const normalized = normalizeAvailability(availability);
+  AVAILABILITY_DAYS.forEach(day => {
+    const range = normalized[day];
+    const allDay = availabilityRangeInput(scope, day, 'all-day');
+    const start = availabilityRangeInput(scope, day, 'start');
+    const end = availabilityRangeInput(scope, day, 'end');
+    if (allDay) allDay.checked = Boolean(range?.allDay);
+    if (start) start.value = range?.start || '09:00';
+    if (end) end.value = range?.end || '17:00';
+    syncAvailabilityRangeInputs(scope, day);
+  });
 }
 
 function updateSignupFlow() {
@@ -689,6 +737,9 @@ function updateSignupFlow() {
     dot.classList.toggle("is-active", stepStates[index]);
     dot.classList.toggle("is-complete", index === 0 ? identityDone : index === 1 ? teamDone : index === 2 ? availabilityDone : logisticsDone);
   });
+  // Step locking runs after the picker renderer; restore All day's disabled
+  // time fields only once the availability step is actually unlocked.
+  if (stepStates[2]) AVAILABILITY_DAYS.forEach(day => syncAvailabilityRangeInputs("apply", day));
 
   const submit = $("#submitApplicationBtn");
   if (submit) submit.disabled = !logisticsDone;
@@ -784,10 +835,7 @@ function renderApplicationForm() {
       input.checked = dates.includes(input.value);
     });
 
-    const availability = normalizeAvailability(currentUser.availability);
-    $$('[data-availability-scope="apply"]').forEach(input => {
-      input.checked = availability[input.dataset.availabilityDay]?.includes(input.value) || false;
-    });
+    setAvailabilityPickerValues("apply", currentUser.availability);
 
     applicationFormHydratedUserId = String(currentUser.id);
   }
@@ -1217,15 +1265,14 @@ function renderAvailabilityForm() {
   const panel = $(".availability-panel");
   if (!panel || !currentUser) return;
   panel.hidden = isManagementUser(currentUser);
-  const availability = normalizeAvailability(currentUser.availability);
-  $$('[data-availability-scope="profile"]').forEach(input => {
-    input.checked = availability[input.dataset.availabilityDay]?.includes(input.value) || false;
-  });
+  setAvailabilityPickerValues("profile", currentUser.availability);
 }
 
 async function saveAvailability() {
   try {
-    const data = await apiRequest("save_availability", { availability: collectAvailability("profile") });
+    const availability = collectAvailability("profile");
+    if (!availabilityHasAny(availability)) throw new Error("Choose All day or enter a valid start and end time for at least one day.");
+    const data = await apiRequest("save_availability", { availability });
     applyState(data);
     if ($("#availabilityMessage")) $("#availabilityMessage").textContent = "Availability saved.";
     showDialog(["Availability saved."]);
@@ -2473,7 +2520,8 @@ function renderAdminAvailability() {
   list.innerHTML = hours.map(hour => {
     const available = managerVisibleUsers().filter(user => {
       const availability = normalizeAvailability(user.availability);
-      return user.status === "approved" && availability[selectedAvailabilityDay].includes(hour);
+      const minute = Math.round((hourToNumber(hour) ?? -1) * 60);
+      return user.status === "approved" && availabilityCoversMinute(availability[selectedAvailabilityDay], minute);
     });
     return `
       <article class="admin-list-card">
@@ -2622,9 +2670,10 @@ function recommendationEmptyReason(shift) {
 
 function availabilitySummaryForShift(user, shift) {
   const day = shift.day || shift.shift_day;
-  const available = normalizeAvailability(user.availability)[day] || [];
-  const matched = shiftHourSlots(shift).filter(hour => available.includes(hour));
-  return matched.length ? `Available: ${matched.join(", ")}` : "No matching hours";
+  const range = normalizeAvailability(user.availability)[day];
+  if (!range) return "No availability entered for this day";
+  if (!availabilityCoversShift(range, shift)) return "Outside selected time range";
+  return range.allDay ? "Available all day" : `Available: ${range.start}–${range.end}`;
 }
 
 function preferenceSummary(user) {
@@ -3287,62 +3336,54 @@ function renderAvailabilityPage() {
     <div class="page-header">
       <div class="page-title-group">
         <h1>Availability</h1>
-        <p>Select the hours you're available each day — tap time chips to toggle</p>
+        <p>Choose All day, or enter the exact time range you can work. Shifts only match when they fit inside your selected time.</p>
       </div>
       <button id="savePageAvailabilityBtn" class="btn btn-primary" type="button">Save Availability</button>
     </div>
     <div class="card animate-in">
-      <div class="card-body">
+      <div class="card-body page-availability-ranges">
         ${days.map(day => {
-          const selected = availability[day] || [];
+          const range = availability[day];
           return `
-          <div class="avail-day">
-            <div class="avail-day-label">
-              <strong>${escapeHtml(day)}</strong>
-              <span class="text-dim text-xs" data-avail-count="${escapeHtml(day)}">${selected.length} hours selected</span>
-            </div>
-            <div class="avail-chips" data-page-avail-day="${escapeHtml(day)}">
-              ${AVAILABILITY_HOURS.map(hour => `
-                <div class="time-chip ${selected.includes(hour) ? "selected" : ""}" role="button" tabindex="0" data-page-avail-hour="${escapeHtml(hour)}">${escapeHtml(pagesHour24(hour))}</div>
-              `).join("")}
-            </div>
-          </div>`;
-        }).join("")}
+            <section class="avail-day availability-range-day" data-availability-range-day="${escapeHtml(day)}">
+              <div class="avail-day-label"><strong>${escapeHtml(day)}</strong><span class="text-dim text-xs">${range ? (range.allDay ? 'All day' : `${range.start}–${range.end}`) : 'Not available'}</span></div>
+              <div class="availability-range-fields">
+                <label class="check-row availability-all-day-option"><input type="checkbox" data-availability-all-day data-availability-scope="page" data-availability-day="${escapeHtml(day)}" ${range?.allDay ? 'checked' : ''}><span>All day</span></label>
+                <label>From<input type="time" data-availability-start data-availability-scope="page" data-availability-day="${escapeHtml(day)}" value="${escapeHtml(range?.start || '09:00')}" ${range?.allDay ? 'disabled' : ''}></label>
+                <label>Until<input type="time" data-availability-end data-availability-scope="page" data-availability-day="${escapeHtml(day)}" value="${escapeHtml(range?.end || '17:00')}" ${range?.allDay ? 'disabled' : ''}></label>
+              </div>
+            </section>`;
+        }).join('')}
       </div>
     </div>
   `;
-  container.querySelectorAll("[data-page-avail-hour]").forEach(chip => {
-    const toggle = () => togglePageAvailabilityChip(chip);
-    chip.addEventListener("click", toggle);
-    chip.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+  container.querySelectorAll('[data-availability-all-day]').forEach(input => {
+    input.addEventListener('change', () => syncAvailabilityRangeInputs('page', input.dataset.availabilityDay));
+  });
+  container.querySelectorAll('[data-availability-start], [data-availability-end]').forEach(input => {
+    input.addEventListener('change', () => {
+      const allDay = availabilityRangeInput('page', input.dataset.availabilityDay, 'all-day');
+      if (allDay) allDay.checked = false;
+      syncAvailabilityRangeInputs('page', input.dataset.availabilityDay);
     });
   });
   container.querySelector("#savePageAvailabilityBtn")?.addEventListener("click", savePageAvailability);
 }
 
-function togglePageAvailabilityChip(chip) {
-  chip.classList.toggle("selected");
-  const dayWrap = chip.closest("[data-page-avail-day]");
-  if (!dayWrap) return;
-  const day = dayWrap.dataset.pageAvailDay;
-  const count = dayWrap.parentElement.querySelector(`[data-avail-count="${day}"]`);
-  const selected = dayWrap.querySelectorAll(".time-chip.selected").length;
-  if (count) count.textContent = `${selected} hours selected`;
-}
-
 async function savePageAvailability() {
-  // Merge the convention-day board with any days not shown here (e.g.
-  // Wednesday / Monday) so we never drop a volunteer's existing availability.
+  // Preserve Wednesday/Monday settings outside this four-day Pages board.
   const merged = normalizeAvailability(currentUser.availability);
   pagesAvailabilityDays().forEach(day => {
-    merged[day] = Array.from($(`#availabilityPageContent [data-page-avail-day="${day}"]`)?.querySelectorAll(".time-chip.selected") || [])
-      .map(chip => chip.dataset.pageAvailHour);
+    merged[day] = availabilityRangeFromInputs('page', day);
   });
+  if (!availabilityHasAny(merged)) {
+    showDialog(['Choose All day or enter a valid start and end time for at least one day.']);
+    return;
+  }
   try {
     const data = await apiRequest("save_availability", { availability: merged });
     applyState(data);
-    showDialog(["Availability saved. Coordinators can now see your open hours."]);
+    showDialog(["Availability saved. Coordinators now see the exact times you can work."]);
   } catch (err) {
     showDialog([err.message]);
   }
@@ -3918,37 +3959,140 @@ init();
 
 function collectAvailability(scope) {
   const availability = emptyAvailability();
-  $$(`[data-availability-scope="${scope}"]:checked`).forEach(input => {
-    const day = input.dataset.availabilityDay;
-    if (availability[day]) availability[day].push(input.value);
+  AVAILABILITY_DAYS.forEach(day => {
+    availability[day] = availabilityRangeFromInputs(scope, day);
   });
   return availability;
 }
 
 function collectApplicationDays() {
-  return $$("[data-application-day]:checked").map(input => input.value);
+  return $("[data-application-day]:checked") ? $$("[data-application-day]:checked").map(input => input.value) : [];
 }
 
 function emptyAvailability() {
   return AVAILABILITY_DAYS.reduce((availability, day) => {
-    availability[day] = [];
+    availability[day] = null;
     return availability;
   }, {});
 }
 
+function clockTimeToMinutes(value) {
+  const match = String(value || '').match(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+  if (!match) return null;
+  const [hour, minute] = value.split(':').map(Number);
+  return (hour * 60) + minute;
+}
+
+function clockTimeLabel(minutes) {
+  const safe = Math.max(0, Math.min(1439, Number(minutes) || 0));
+  return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
+}
+
+function legacyAvailabilityRange(values) {
+  const starts = [], ends = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const text = String(value || '').trim();
+    if (text === 'all-day') return { allDay: true, start: '00:00', end: '23:59' };
+    const range = text.match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+    if (range && clockTimeToMinutes(range[1]) !== null && clockTimeToMinutes(range[2]) !== null) {
+      starts.push(clockTimeToMinutes(range[1])); ends.push(clockTimeToMinutes(range[2])); continue;
+    }
+    const minute = hourToNumber(text);
+    if (minute !== null) {
+      starts.push(Math.round(minute * 60));
+      ends.push(Math.min(1439, Math.round((minute + 1) * 60)));
+    }
+  }
+  if (!starts.length || !ends.length) return null;
+  const start = Math.min(...starts), end = Math.max(...ends);
+  return end > start ? { allDay: false, start: clockTimeLabel(start), end: clockTimeLabel(end) } : null;
+}
+
 function normalizeAvailability(availability) {
   const normalized = emptyAvailability();
-  if (typeof availability === "string") {
+  if (typeof availability === 'string') {
     try { availability = JSON.parse(availability); } catch { availability = null; }
   }
-  if (!availability || typeof availability !== "object") return normalized;
-
+  if (!availability || typeof availability !== 'object') return normalized;
   AVAILABILITY_DAYS.forEach(day => {
-    normalized[day] = Array.isArray(availability[day])
-      ? availability[day].filter(hour => AVAILABILITY_HOURS.includes(hour))
-      : [];
+    const entry = availability[day];
+    if (entry && !Array.isArray(entry) && typeof entry === 'object') {
+      if (entry.allDay) {
+        normalized[day] = { allDay: true, start: '00:00', end: '23:59' };
+      } else if (clockTimeToMinutes(entry.start) !== null && clockTimeToMinutes(entry.end) !== null
+          && clockTimeToMinutes(entry.end) > clockTimeToMinutes(entry.start)) {
+        normalized[day] = { allDay: false, start: entry.start, end: entry.end };
+      }
+    } else if (Array.isArray(entry)) {
+      normalized[day] = legacyAvailabilityRange(entry);
+    }
   });
   return normalized;
+}
+
+function availabilitySummary(availability) {
+  const normalized = normalizeAvailability(availability);
+  return AVAILABILITY_DAYS
+    .map(day => {
+      const range = normalized[day];
+      return `${day}: ${range ? (range.allDay ? 'All day' : `${range.start}–${range.end}`) : 'none'}`;
+    })
+    .join(' | ');
+}
+
+function availabilityHasAny(availability) {
+  const normalized = normalizeAvailability(availability);
+  return AVAILABILITY_DAYS.some(day => Boolean(normalized[day]));
+}
+
+function shiftTimeRange(shift) {
+  const text = String(shift.time || shift.shift_time || '');
+  const [startText, endText] = text.split(/\s*-\s*/);
+  const start = hourToNumber(startText), end = hourToNumber(endText);
+  if (start === null || end === null || end <= start) return null;
+  return { start: Math.round(start * 60), end: Math.round(end * 60) };
+}
+
+function availabilityCoversMinute(range, minute) {
+  if (!range) return false;
+  if (range.allDay) return true;
+  const start = clockTimeToMinutes(range.start), end = clockTimeToMinutes(range.end);
+  return start !== null && end !== null && minute >= start && minute < end;
+}
+
+function availabilityCoversShift(range, shift) {
+  if (!range) return false;
+  if (range.allDay) return true;
+  const shiftRange = shiftTimeRange(shift);
+  if (!shiftRange) return false;
+  const start = clockTimeToMinutes(range.start), end = clockTimeToMinutes(range.end);
+  return start !== null && end !== null && start <= shiftRange.start && end >= shiftRange.end;
+}
+
+function shiftMatchesAvailability(user, shift) {
+  const day = shift.day || shift.shift_day;
+  const availability = normalizeAvailability(user.availability);
+  return availabilityCoversShift(availability[day], shift);
+}
+
+function shiftHourSlots(shift) {
+  const range = shiftTimeRange(shift);
+  if (!range) return [];
+  return AVAILABILITY_HOURS.filter(hour => {
+    const minute = hourToNumber(hour);
+    return minute !== null && Math.round(minute * 60) >= range.start && Math.round(minute * 60) < range.end;
+  });
+}
+
+function hourToNumber(label) {
+  const match = String(label || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minutes = Number(match[2] || 0);
+  const period = match[3].toUpperCase();
+  if (period === 'AM' && hour === 12) hour = 0;
+  if (period === 'PM' && hour !== 12) hour += 12;
+  return hour + (minutes / 60);
 }
 
 function normalizeUser(user) {
@@ -3987,51 +4131,6 @@ function normalizeUser(user) {
     canSafety: Boolean(user.canSafety),
     canVendorHall: Boolean(user.canVendorHall)
   };
-}
-
-function availabilitySummary(availability) {
-  const normalized = normalizeAvailability(availability);
-  return AVAILABILITY_DAYS
-    .map(day => `${day}: ${normalized[day].length ? normalized[day].join(", ") : "none"}`)
-    .join(" | ");
-}
-
-function availabilityHasAny(availability) {
-  const normalized = normalizeAvailability(availability);
-  return AVAILABILITY_DAYS.some(day => normalized[day].length > 0);
-}
-
-function shiftMatchesAvailability(user, shift) {
-  const day = shift.day || shift.shift_day;
-  const availability = normalizeAvailability(user.availability);
-  if (!availability[day]) return false;
-  const coveredHours = shiftHourSlots(shift);
-  return coveredHours.some(hour => availability[day].includes(hour));
-}
-
-function shiftHourSlots(shift) {
-  const time = String(shift.time || shift.shift_time || "");
-  const [startText, endText] = time.split(/\s*-\s*/);
-  const start = hourToNumber(startText);
-  const end = hourToNumber(endText);
-  if (start === null || end === null) return [];
-  return AVAILABILITY_HOURS.filter(hour => {
-    const value = hourToNumber(hour);
-    if (value === null) return false;
-    if (end <= start) return value >= start || value < end;
-    return value >= start && value < end;
-  });
-}
-
-function hourToNumber(label) {
-  const match = String(label || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
-  if (!match) return null;
-  let hour = Number(match[1]);
-  const minutes = Number(match[2] || 0);
-  const period = match[3].toUpperCase();
-  if (period === "AM" && hour === 12) hour = 0;
-  if (period === "PM" && hour !== 12) hour += 12;
-  return hour + (minutes / 60);
 }
 
 function updateClockStatus(lookup, clockedIn, messageSelector, adminMode) {

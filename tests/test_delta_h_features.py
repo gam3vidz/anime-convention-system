@@ -131,8 +131,8 @@ class ManagementPortalTests(unittest.TestCase):
             ".volunteer-profile-access-state.is-blacklisted",
         ):
             self.assertIn(marker, self.css)
-        self.assertIn("styles.css?v=45", self.html)
-        self.assertIn("core.js?v=45", self.html)
+        self.assertIn("styles.css?v=46", self.html)
+        self.assertIn("core.js?v=46", self.html)
         self.assertIn("grid-template-columns: repeat(12, minmax(48px, 1fr));", self.css)
         self.assertIn("grid-template-columns: repeat(4, minmax(60px, 1fr));", self.css)
         self.assertNotIn("V0 COMMAND CENTER SHELL + ROSTER HANDOUTS", self.css)
@@ -188,6 +188,34 @@ class DiscordTimeClockTests(unittest.TestCase):
             self.assertIn(marker, self.html)
         self.assertIn("renderVolunteerTimeClock", self.client)
         self.assertIn("escapeHtml(entry.source", self.client)
+
+
+class CustomAvailabilityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.api = (ROOT / "api/api.php").read_text(encoding="utf-8")
+        cls.html = (ROOT / "index.html").read_text(encoding="utf-8")
+        cls.client = (ROOT / "core.js").read_text(encoding="utf-8")
+
+    def test_application_and_profile_use_all_day_or_custom_time_ranges(self):
+        self.assertIn("data-availability-all-day", self.client)
+        self.assertIn('type="time"', self.client)
+        self.assertIn("availabilityRangeFromInputs", self.client)
+        self.assertNotIn('data-availability-scope="${scope}" data-availability-day="${day}" value="${hour}"', self.client)
+
+    def test_backend_normalizes_and_persists_custom_ranges(self):
+        self.assertIn("function normalizeAvailabilityRanges", self.api)
+        self.assertIn("function isValidAvailabilityTime", self.api)
+        save = php_function(self.api, "saveAvailability")
+        self.assertIn("normalizeAvailabilityRanges", save)
+        self.assertIn("all-day", save)
+        self.assertIn("['start'] . '-' . $range['end']", save)
+
+    def test_shift_matching_uses_range_containment_not_hourly_checkbox_overlap(self):
+        self.assertIn("availabilityCoversShift", self.client)
+        matcher = self.client[self.client.index("function shiftMatchesAvailability"):self.client.index("function updateClockStatus")]
+        self.assertIn("availabilityCoversShift", matcher)
+        self.assertNotIn("coveredHours.some", matcher)
 
 
 class SessionAndErrorHardeningTests(unittest.TestCase):

@@ -397,11 +397,12 @@ class PagesUiPortTests(unittest.TestCase):
 
     def test_availability_route_uses_real_data_and_save_flow(self):
         body = self.fnbody("function renderAvailabilityPage(")
-        for token in ("normalizeAvailability(currentUser.availability)", "AVAILABILITY_HOURS",
-                      "pagesAvailabilityDays()", "avail-chips", "time-chip", "hours selected",
-                      "Save Availability"):
+        for token in ("normalizeAvailability(currentUser.availability)", "pagesAvailabilityDays()",
+                      "availability-range-fields", "data-availability-all-day", "type=\"time\"",
+                      "syncAvailabilityRangeInputs", "Save Availability"):
             self.assertIn(token, body, f"availability page missing {token}")
         save = self.fnbody("async function savePageAvailability(")
+        self.assertIn("availabilityRangeFromInputs('page'", save)
         self.assertIn('apiRequest("save_availability"', save)
 
     def test_shift_board_uses_real_shifts_and_authorized_pickup(self):

@@ -462,7 +462,7 @@ function getAppState(PDO $pdo, ?int $userId): array {
         unset($u['password_hash']);
         $uid = (int)$u['id'];
         $u['shiftIds'] = $userShifts[$uid] ?? [];
-        $u['availability'] = $userAvailability[$uid] ?? emptyAvailability();
+        $u['availability'] = normalizeAvailabilityRanges($userAvailability[$uid] ?? []);
         $u['blacklisted'] = (bool)($u['blacklisted'] ?? false);
         $u['clockedIn'] = (bool)($u['clocked_in'] ?? false);
         $u['clockedAt'] = $u['clocked_at'] ?? "";
@@ -665,30 +665,94 @@ function getAppState(PDO $pdo, ?int $userId): array {
 }
 
 function emptyAvailability(): array {
-    return ['Wednesday' => [], 'Thursday' => [], 'Friday' => [], 'Saturday' => [], 'Sunday' => [], 'Monday' => []];
+    return ['Wednesday' => null, 'Thursday' => null, 'Friday' => null, 'Saturday' => null, 'Sunday' => null, 'Monday' => null];
+}
+
+function isValidAvailabilityTime(string $time): bool {
+    if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $time)) return false;
+    return true;
+}
+
+function availabilityTimeMinutes(string $time): int {
+    [$hour, $minute] = array_map('intval', explode(':', $time, 2));
+    return ($hour * 60) + $minute;
+}
+
+function availabilityTimeLabel(int $minutes): string {
+    $minutes = max(0, min(1439, $minutes));
+    return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+}
+
+function legacyAvailabilityMinute(string $value): ?int {
+    $value = trim($value);
+    if (!preg_match('/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i', $value, $match)) return null;
+    $hour = (int)$match[1];
+    $minute = (int)($match[2] ?? 0);
+    $period = strtoupper($match[3]);
+    if ($hour < 1 || $hour > 12 || $minute > 59) return null;
+    if ($period === 'AM' && $hour === 12) $hour = 0;
+    if ($period === 'PM' && $hour !== 12) $hour += 12;
+    return ($hour * 60) + $minute;
+}
+
+function legacyAvailabilityRange(array $values): ?array {
+    $starts = [];
+    $ends = [];
+    foreach ($values as $value) {
+        $value = trim((string)$value);
+        if ($value === '') continue;
+        if ($value === 'all-day') return ['allDay' => true, 'start' => '00:00', 'end' => '23:59'];
+        if (preg_match('/^(\d{2}:\d{2})-(\d{2}:\d{2})$/', $value, $range)
+            && isValidAvailabilityTime($range[1]) && isValidAvailabilityTime($range[2])) {
+            $starts[] = availabilityTimeMinutes($range[1]);
+            $ends[] = availabilityTimeMinutes($range[2]);
+            continue;
+        }
+        $minute = legacyAvailabilityMinute($value);
+        if ($minute !== null) {
+            $starts[] = $minute;
+            $ends[] = min(1439, $minute + 60);
+        }
+    }
+    if (!$starts || !$ends) return null;
+    $start = min($starts);
+    $end = max($ends);
+    if ($end <= $start) return null;
+    return ['allDay' => false, 'start' => availabilityTimeLabel($start), 'end' => availabilityTimeLabel($end)];
+}
+
+function normalizeAvailabilityRanges(array $availability): array {
+    $clean = emptyAvailability();
+    foreach (array_keys($clean) as $day) {
+        $entry = $availability[$day] ?? null;
+        if (is_array($entry) && array_key_exists('allDay', $entry)) {
+            if (!empty($entry['allDay'])) {
+                $clean[$day] = ['allDay' => true, 'start' => '00:00', 'end' => '23:59'];
+                continue;
+            }
+            $start = trim((string)($entry['start'] ?? ''));
+            $end = trim((string)($entry['end'] ?? ''));
+            if (isValidAvailabilityTime($start) && isValidAvailabilityTime($end)
+                && availabilityTimeMinutes($end) > availabilityTimeMinutes($start)) {
+                $clean[$day] = ['allDay' => false, 'start' => $start, 'end' => $end];
+            }
+            continue;
+        }
+        if (is_array($entry)) {
+            $clean[$day] = legacyAvailabilityRange($entry);
+        }
+    }
+    return $clean;
 }
 
 function saveAvailability(PDO $pdo, int $userId, array $availability): void {
-    $validDays = ['Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday'];
-    $validHours = [
-        '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-        '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM',
-        '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM', '10:00 PM', '11:00 PM'
-    ];
-
+    $clean = normalizeAvailabilityRanges($availability);
     $pdo->prepare("DELETE FROM user_availability WHERE user_id = ?")->execute([$userId]);
     $insert = $pdo->prepare("INSERT INTO user_availability (user_id, available_day, hour_slot) VALUES (?, ?, ?)");
-
-    foreach ($validDays as $day) {
-        $hours = array_values(array_unique(array_filter((array)($availability[$day] ?? []), fn($hour) => in_array($hour, $validHours, true))));
-        foreach ($hours as $hour) {
-            $insert->execute([$userId, $day, $hour]);
-        }
-    }
-
-    $clean = emptyAvailability();
-    foreach ($validDays as $day) {
-        $clean[$day] = array_values(array_unique(array_filter((array)($availability[$day] ?? []), fn($hour) => in_array($hour, $validHours, true))));
+    foreach ($clean as $day => $range) {
+        if (!$range) continue;
+        $slot = !empty($range['allDay']) ? 'all-day' : $range['start'] . '-' . $range['end'];
+        $insert->execute([$userId, $day, $slot]);
     }
     $stmt = $pdo->prepare("UPDATE users SET availability_json = ? WHERE id = ?");
     $stmt->execute([json_encode($clean), $userId]);
@@ -2023,14 +2087,9 @@ try {
             if (!$userRow) fail("Volunteer account not found.", 404);
             if ((int)($userRow['blacklisted'] ?? 0) === 1) fail("This account is blocked.", 403);
 
-            $availability = (array)($input['availability'] ?? []);
-            $hasAvailability = false;
-            foreach (emptyAvailability() as $day => $_) {
-                if (!empty($availability[$day]) && is_array($availability[$day])) {
-                    $hasAvailability = true;
-                }
-            }
-            if (!$hasAvailability) fail("Choose at least one available time block.");
+            $availability = normalizeAvailabilityRanges((array)($input['availability'] ?? []));
+            $hasAvailability = count(array_filter($availability)) > 0;
+            if (!$hasAvailability) fail("Choose All day or a valid start and end time for at least one day.");
 
             $validApplicationDays = [
                 'Wednesday - Truck Loading',
