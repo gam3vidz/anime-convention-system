@@ -3302,6 +3302,10 @@ a:focus-visible {
 }
 
 @media (max-width: 768px) {
+  /* The base stylesheet zeros --sidebar-w for the content offset; retain a
+     physical drawer width so translateX(-100%) actually hides its contents. */
+  .sidebar { width: 248px; }
+  .main-content { margin-left: 0; max-width: 100vw; }
   .sidebar-toggle { display: inline-flex; }
   .sidebar.open ~ .sidebar-scrim,
   .sidebar-scrim.open { display: block; }
@@ -3374,4 +3378,183 @@ a:focus-visible {
   .anime-dancer,
   .anime-spark { animation: none !important; }
   .anime-dance-gif { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PAGES SCREEN-SET VIEWS — scoped, source-faithful component styles
+   Appended below the FUNCTIONAL EXTENSION banner. Every rule is
+   scoped to a Pages view container so it never resets the shared
+   Pages shell/sidebar/main offsets.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Metric rows read as fixed, left-aligned cards (My Shifts, Food,
+   Hotels, Guest Relations) instead of stretching full width. */
+.pages-view .stat-grid {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 250px));
+  justify-content: start;
+}
+
+/* ── Shift Board: restore the Pages card layout over the volunteer
+      shift-card overrides that live in the extension section. ── */
+#shiftBoardView .shift-card {
+  display: block;
+  padding: 20px;
+}
+#shiftBoardView .shift-card::before {
+  inset: 0 auto 0 0;
+  width: 4px;
+  height: auto;
+  background: var(--dept-accent, var(--grad-brand));
+}
+#shiftBoardView .shift-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 0;
+}
+#shiftBoardView .shift-card .btn {
+  justify-self: auto;
+  min-height: 0;
+  padding: 6px 12px;
+  font-size: .78rem;
+  font-weight: 700;
+}
+#shiftBoardView .shift-card .btn-primary {
+  background: var(--grad-brand);
+  border-color: transparent;
+  color: #fff;
+}
+#shiftBoardView .shift-card .btn-ghost {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+#shiftBoardView .shift-card .btn:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+/* ── Volunteer Roster: avatar + identity cell ── */
+#rosterPageView .roster-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#rosterPageView .roster-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── Manage Shifts: compact row actions ── */
+#manageShiftsView .manage-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Food & Counts: three compact meal cards + dietary rows ── */
+#foodPageView .meal-grid {
+  grid-template-columns: repeat(3, minmax(0, 230px));
+  justify-content: start;
+}
+#foodPageView .mb-6 { margin-bottom: 24px; }
+/* Restore the Pages inline underlined day tabs over the management
+   full-width tab treatment from the extension section. */
+#foodPageView .tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+#foodPageView .tab {
+  display: block;
+  padding: 12px 20px;
+  margin: 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+#foodPageView .tab::before { content: none; }
+#foodPageView .tab.active {
+  color: var(--text-1);
+  background: none;
+  border-bottom-color: var(--brand-1);
+}
+#foodPageView .dietary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+#foodPageView .dietary-row:last-child { border-bottom: none; }
+#foodDayContent .stat-grid { grid-template-columns: minmax(0, 300px); }
+
+/* ── Guest Relations: flight tracking rows ── */
+#guestRelationsView .flight-list { display: block; }
+#guestRelationsView .flight-body {
+  flex: 1;
+  min-width: 0;
+}
+#guestRelationsView .flight-pickup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+#guestRelationsView .flight-pickup label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .72rem;
+  color: var(--text-3);
+}
+#guestRelationsView .flight-pickup select {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-1);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: .82rem;
+}
+#guestRelationsView .flight-tracking-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#guestRelationsView .add-guest-panel { margin-bottom: 24px; }
+
+/* ── Responsive: collapse metric/meal rows on small screens ── */
+@media (max-width: 720px) {
+  .pages-view .stat-grid { grid-template-columns: 1fr 1fr; }
+  #foodPageView .meal-grid { grid-template-columns: 1fr; }
+  #foodDayContent .stat-grid { grid-template-columns: 1fr; }
+  #manageShiftsView .manage-actions { flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .pages-view .stat-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Reduced motion: disable the Pages entrance/pulse animations ── */
+@media (prefers-reduced-motion: reduce) {
+  .pages-view .animate-in { animation: none !important; }
+  .pages-view .time-chip.selected { animation: none !important; }
 }

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=42" />
+    <link rel="stylesheet" href="styles.css?v=43" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -327,44 +327,51 @@
         </div>
       </section>
 
-      <section id="guestRelationsView" class="view" aria-labelledby="guestRelationsTitle">
-        <div class="page-heading">
-          <div>
-            <p class="eyebrow">Guest Relations</p>
-            <h2 id="guestRelationsTitle">Guest flight tracker</h2>
+      <section id="guestRelationsView" class="view pages-view" aria-labelledby="guestRelationsTitle">
+        <h2 id="guestRelationsTitle" class="visually-hidden">Guest Relations</h2>
+        <div class="page-header">
+          <div class="page-title-group">
+            <h1>Guest Relations</h1>
+            <p>Track guest flights and arrivals</p>
+          </div>
+          <div class="page-actions">
+            <button id="addGuestToggleBtn" class="btn btn-primary" type="button">+ Add Guest</button>
           </div>
         </div>
 
-        <section class="workspace-grid admin-grid">
-          <div class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Arrivals</p>
-                <h2>Add a guest flight</h2>
-              </div>
-            </div>
-            <form id="guestFlightForm" class="form-grid">
-              <label>Guest name<input id="guestFlightName" type="text" required /></label>
-              <label>Airline confirmation number<input id="guestConfirmationNumber" type="password" autocomplete="off" maxlength="80" required /></label>
-              <label>Flight number<input id="guestFlightNumber" type="text" placeholder="AA1234" required /></label>
-              <label>Flight date<input id="guestFlightDate" type="date" required /></label>
-              <label>Assigned pickup person<select id="guestPickupAssignee" required><option value="">Choose active Guest Relations staff</option></select></label>
-              <div class="form-actions"><button class="primary-button" type="submit">Track flight</button></div>
-            </form>
-            <p id="guestFlightMessage" class="message" aria-live="polite"></p>
-          </div>
+        <div id="guestRelationsStats" class="stat-grid" aria-label="Guest totals"></div>
 
-          <aside class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Status</p>
-                <h2>Tracked guests</h2>
-              </div>
-              <button id="refreshGuestFlightsBtn" class="quiet-button" type="button">Refresh flight status</button>
+        <section class="panel add-guest-panel" id="addGuestPanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Arrivals</p>
+              <h2>Add a guest flight</h2>
             </div>
-            <div id="guestFlightList" class="admin-card-list"></div>
-          </aside>
+            <button id="closeAddGuestBtn" class="quiet-button" type="button">Close</button>
+          </div>
+          <form id="guestFlightForm" class="form-grid">
+            <label>Guest name<input id="guestFlightName" type="text" required /></label>
+            <label>Airline confirmation number<input id="guestConfirmationNumber" type="password" autocomplete="off" maxlength="80" required /></label>
+            <label>Flight number<input id="guestFlightNumber" type="text" placeholder="AA1234" required /></label>
+            <label>Flight date<input id="guestFlightDate" type="date" required /></label>
+            <label>Assigned pickup person<select id="guestPickupAssignee" required><option value="">Choose active Guest Relations staff</option></select></label>
+            <div class="form-actions"><button class="primary-button" type="submit">Track flight</button></div>
+          </form>
+          <p id="guestFlightMessage" class="message" aria-live="polite"></p>
         </section>
+
+        <div class="card animate-in">
+          <div class="card-header">
+            <span class="card-title">Flight Tracking</span>
+            <div class="flight-tracking-actions">
+              <span class="badge badge-neutral">Flight API: Optional (not configured)</span>
+              <button id="refreshGuestFlightsBtn" class="btn btn-sm btn-ghost" type="button">Refresh flight status</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="guestFlightList" class="flight-list"></div>
+          </div>
+        </div>
       </section>
 
       <section id="vendorHallView" class="view" aria-labelledby="vendorHallTitle">
@@ -993,6 +1000,47 @@
         </section>
 
       </section>
+
+      <!-- ════════════════════════════════════════════════
+           SOURCE-FAITHFUL PAGES SCREEN-SET VIEWS
+           Literal Delta H Pages routes. Each renders exact
+           Pages DOM from live session data and routes its
+           actions to the existing forms/handlers above.
+           ════════════════════════════════════════════════ -->
+      <section id="availabilityPageView" class="view pages-view" aria-labelledby="availabilityPageTitle">
+        <h2 id="availabilityPageTitle" class="visually-hidden">Availability</h2>
+        <div id="availabilityPageContent"></div>
+      </section>
+
+      <section id="shiftBoardView" class="view pages-view" aria-labelledby="shiftBoardTitle">
+        <h2 id="shiftBoardTitle" class="visually-hidden">Shift Board</h2>
+        <div id="shiftBoardContent"></div>
+      </section>
+
+      <section id="myShiftsPageView" class="view pages-view" aria-labelledby="myShiftsPageTitle">
+        <h2 id="myShiftsPageTitle" class="visually-hidden">My Shifts</h2>
+        <div id="myShiftsPageContent"></div>
+      </section>
+
+      <section id="manageShiftsView" class="view pages-view" aria-labelledby="manageShiftsTitle">
+        <h2 id="manageShiftsTitle" class="visually-hidden">Manage Shifts</h2>
+        <div id="manageShiftsContent"></div>
+      </section>
+
+      <section id="rosterPageView" class="view pages-view" aria-labelledby="rosterPageTitle">
+        <h2 id="rosterPageTitle" class="visually-hidden">Volunteer Roster</h2>
+        <div id="rosterPageContent"></div>
+      </section>
+
+      <section id="foodPageView" class="view pages-view" aria-labelledby="foodPageTitle">
+        <h2 id="foodPageTitle" class="visually-hidden">Food &amp; Counts</h2>
+        <div id="foodPageContent"></div>
+      </section>
+
+      <section id="hotelsPageView" class="view pages-view" aria-labelledby="hotelsPageTitle">
+        <h2 id="hotelsPageTitle" class="visually-hidden">Hotels</h2>
+        <div id="hotelsPageContent"></div>
+      </section>
       </div>
       </main>
       <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
@@ -1080,6 +1128,6 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=42"></script>
+    <script src="core.js?v=43"></script>
   </body>
 </html>

@@ -274,6 +274,16 @@ function bindEvents() {
   on("#sendDiscordDmBtn", "click", sendDiscordDmToVolunteer);
   on("#guestFlightForm", "submit", saveGuestFlight);
   on("#refreshGuestFlightsBtn", "click", refreshGuestFlights);
+  on("#addGuestToggleBtn", "click", () => {
+    const panel = $("#addGuestPanel");
+    if (!panel) return;
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) $("#guestFlightName")?.focus();
+  });
+  on("#closeAddGuestBtn", "click", () => {
+    const panel = $("#addGuestPanel");
+    if (panel) panel.hidden = true;
+  });
   on("#guestFlightList", "change", (event) => {
     const select = event.target.closest("[data-flight-assignee]");
     if (select) updateGuestFlightAssignee(select);
@@ -380,13 +390,13 @@ const NAV_ICONS = {
 const SIDEBAR_NAV_ITEMS = [
   { section: "Volunteer", navKey: "dashboardView", view: "dashboardView", label: "Dashboard", icon: "dashboard", show: () => true },
   { section: "Volunteer", navKey: "volunteerView", view: "volunteerView", label: "My Profile", icon: "profile", show: () => true },
-  { section: "Volunteer", navKey: "availability", view: "volunteerView", label: "Availability", icon: "availability", show: () => true },
-  { section: "Volunteer", navKey: "shiftBoard", view: "volunteerView", label: "Shift Board", icon: "shifts", show: () => true },
-  { section: "Volunteer", navKey: "myShifts", view: "volunteerView", label: "My Shifts", icon: "myShifts", show: () => true },
-  { section: "Management", navKey: "managementView", view: "managementView", label: "Manage Shifts", icon: "manage", show: (user) => isManagementUser(user) },
-  { section: "Management", navKey: "volunteerRoster", view: "managementView", label: "Volunteer Roster", icon: "roster", show: (user) => isManagementUser(user) },
-  { section: "Management", navKey: "foodCounts", view: "managementView", label: "Food & Counts", icon: "food", show: (user) => isManagementUser(user) },
-  { section: "Management", navKey: "hotels", view: "managementView", label: "Hotels", icon: "hotels", show: (user) => isManagementUser(user) },
+  { section: "Volunteer", navKey: "availabilityPageView", view: "availabilityPageView", label: "Availability", icon: "availability", show: () => true },
+  { section: "Volunteer", navKey: "shiftBoardView", view: "shiftBoardView", label: "Shift Board", icon: "shifts", show: () => true },
+  { section: "Volunteer", navKey: "myShiftsPageView", view: "myShiftsPageView", label: "My Shifts", icon: "myShifts", show: () => true },
+  { section: "Management", navKey: "manageShiftsView", view: "manageShiftsView", label: "Manage Shifts", icon: "manage", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "rosterPageView", view: "rosterPageView", label: "Volunteer Roster", icon: "roster", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "foodPageView", view: "foodPageView", label: "Food & Counts", icon: "food", show: (user) => isManagementUser(user) },
+  { section: "Management", navKey: "hotelsPageView", view: "hotelsPageView", label: "Hotels", icon: "hotels", show: (user) => isManagementUser(user) },
   { section: "Management", navKey: "guestRelationsView", view: "guestRelationsView", label: "Guest Relations", icon: "guests", show: (user) => !!user.canGuestRelations || isManagementUser(user) },
   { section: "Management", navKey: "adminView", view: "adminView", label: "System Log", icon: "log", show: (user) => isFullAdmin(user) },
   { section: "Management", navKey: "vendorHallView", view: "vendorHallView", label: "Vendor Hall", icon: "hotels", show: (user) => !!user.canVendorHall },
@@ -710,14 +720,22 @@ function renderAll() {
   renderPreferenceForm();
   renderVolunteer();
   renderAvailabilityForm();
+  renderAvailabilityPage();
+  renderShiftBoardPage();
+  renderMyShiftsPage();
   updateManagedDepartmentSelect();
   renderManagementOverview();
   renderManagement();
   renderShiftManagement();
+  renderManageShiftsPage();
+  renderRosterPage();
   renderDailyCounts();
+  renderFoodPage();
   renderHotels();
+  renderHotelsPage();
   renderDiscordDmTools();
   renderSystemLogs();
+  renderGuestRelationsPage();
   renderGuestFlights();
   renderSafety();
   renderVendorHall();
@@ -1765,7 +1783,7 @@ async function sendDiscordDmToVolunteer() {
 
 function renderGuestFlights() {
   const list = $("#guestFlightList");
-  if (!list || !currentUser?.canGuestRelations) return;
+  if (!list || !(currentUser?.canGuestRelations || isManagementUser(currentUser))) return;
   const assignee = $("#guestPickupAssignee");
   if (assignee) {
     const current = assignee.value;
@@ -1774,23 +1792,40 @@ function renderGuestFlights() {
     ).join("");
     if (pickupStaff.some(person => String(person.id) === String(current))) assignee.value = current;
   }
-  list.innerHTML = guestFlights.length ? guestFlights.map(flight => `
-    <article class="admin-list-card">
-      <div>
-        <strong>${escapeHtml(flight.guest_name || flight.guestName || "")}</strong>
-        <span>${escapeHtml(flight.flight_number || "")} - ${escapeHtml(flight.flight_date || "")}</span>
+  const planeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 2.9 5.2c.3.4.8.5 1.3.3l.5-.2c.4-.2.6-.6.5-1.1z"/></svg>';
+  list.innerHTML = guestFlights.length ? guestFlights.map(flight => {
+    const status = String(flight.flight_status || "Scheduled");
+    const badgeClass = /arriv/i.test(status)
+      ? "badge-success"
+      : /transit|air|route|boarding|departed/i.test(status)
+        ? "badge-warning"
+        : "badge-info";
+    const meta = [
+      flight.flight_number ? `Flight <strong class="mono">${escapeHtml(flight.flight_number)}</strong>` : "",
+      escapeHtml(flight.flight_date || ""),
+      [flight.departure_airport, flight.arrival_airport].filter(Boolean).map(escapeHtml).join(" → ")
+    ].filter(Boolean).join(" · ");
+    const pickupOptions = `<option value="">Unassigned</option>` + pickupStaff.map(person =>
+      `<option value="${escapeHtml(person.id)}" ${String(person.id) === String(flight.assigned_user_id) ? "selected" : ""}>${escapeHtml(person.name)}</option>`
+    ).join("");
+    return `
+      <div class="flight-card">
+        <div class="flight-icon">${planeIcon}</div>
+        <div class="flight-body">
+          <div class="font-bold">${escapeHtml(flight.guest_name || flight.guestName || "Guest")}</div>
+          <div class="text-sm text-dim">${meta || "Route pending"}</div>
+          <div class="flight-pickup">
+            <label>Pickup person
+              <select data-flight-assignee="${escapeHtml(flight.id)}">${pickupOptions}</select>
+            </label>
+            <span class="flight-confirmation text-xs text-dim">Confirmation: ${escapeHtml(flight.confirmation_number ? `••••${String(flight.confirmation_number).slice(-2)}` : "Not saved")}</span>
+          </div>
+          ${flight.notification_error ? `<span class="message">Discord update failed: ${escapeHtml(flight.notification_error)}</span>` : ""}
+        </div>
+        <span class="badge ${badgeClass} badge-dot">${escapeHtml(status.replace(/[-_]/g, " "))}</span>
       </div>
-      <span>${escapeHtml([flight.airline, flight.departure_airport, flight.arrival_airport].filter(Boolean).join(" -> ") || "Route pending")}</span>
-      <span>Confirmation: ${escapeHtml(flight.confirmation_number ? `••••${String(flight.confirmation_number).slice(-2)}` : "Not saved")}</span>
-      <label>Pickup person
-        <select data-flight-assignee="${escapeHtml(flight.id)}">
-          ${pickupStaff.map(person => `<option value="${escapeHtml(person.id)}" ${String(person.id) === String(flight.assigned_user_id) ? "selected" : ""}>${escapeHtml(person.name)}</option>`).join("")}
-        </select>
-      </label>
-      <span class="badge">${escapeHtml(flight.flight_status || "Saved")}</span>
-      ${flight.notification_error ? `<span class="message">Discord update failed: ${escapeHtml(flight.notification_error)}</span>` : ""}
-    </article>
-  `).join("") : `<p class="summary">No guest flights tracked yet.</p>`;
+    `;
+  }).join("") : `<div class="empty-state"><p>No guest flights tracked yet. Use “+ Add Guest” to add one.</p></div>`;
 }
 
 async function saveGuestFlight(event) {
@@ -3092,6 +3127,728 @@ window.updateShirtPickup = async (userId, pickedUp, button) => {
     showDialog([`T-shirt pickup was not updated: ${err.message}`]);
   }
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   SOURCE-FAITHFUL PAGES SCREEN-SET RENDERERS
+   Each function renders a literal Delta H Pages route into its
+   dedicated view container from live session collections (users,
+   shifts, hotelRooms, guestFlights, pickupStaff, mealWindows,
+   currentUser, selectedShiftIds). No sample/demo data. Interactive
+   controls route to the existing forms/handlers and reuse the real
+   server-authorized API actions, so gating and CSRF are unchanged.
+   ═══════════════════════════════════════════════════════════════ */
+
+// Deterministic avatar gradient palette (ported look from the Pages UI).
+// Indexed by a stable hash of the user id/name so a person always draws
+// the same color — no randomness, no per-render drift.
+const PAGES_AVATAR_PALETTE = [
+  "linear-gradient(135deg,#6366f1,#8b5cf6)",
+  "linear-gradient(135deg,#06b6d4,#3b82f6)",
+  "linear-gradient(135deg,#10b981,#059669)",
+  "linear-gradient(135deg,#f59e0b,#f97316)",
+  "linear-gradient(135deg,#ec4899,#f43f5e)",
+  "linear-gradient(135deg,#8b5cf6,#a855f7)",
+  "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+  "linear-gradient(135deg,#14b8a6,#0891b2)"
+];
+function pagesAvatarGradient(seed) {
+  const text = String(seed ?? "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  return PAGES_AVATAR_PALETTE[hash % PAGES_AVATAR_PALETTE.length];
+}
+
+// 24-hour label for an AVAILABILITY_HOURS entry (e.g. "1:00 PM" -> "13:00").
+function pagesHour24(label) {
+  const value = hourToNumber(label);
+  if (value === null) return String(label);
+  return `${String(Math.floor(value)).padStart(2, "0")}:00`;
+}
+
+function pagesUserDept() {
+  return currentUser.department || currentUser.applied_department || currentUser.appliedDepartment || "";
+}
+
+// Deterministic per-department accent color (drives the shift card left edge).
+function pagesDeptColor(dept) {
+  const text = String(dept ?? "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  return DASHBOARD_DEPT_COLORS[hash % DASHBOARD_DEPT_COLORS.length];
+}
+
+function pagesGenderLabel(user) {
+  const g = String(user.gender || "").trim();
+  if (/^male$/i.test(g)) return "Male";
+  if (/^female$/i.test(g)) return "Female";
+  return "Other";
+}
+
+function pagesDietaryLabel(user) {
+  const raw = String(user.allergies || "").trim();
+  if (!raw || /^(none|n\/a|na|no)$/i.test(raw)) return "";
+  return raw;
+}
+
+function pagesRoomTitle(name) {
+  const n = String(name || "").trim();
+  return /^room\b/i.test(n) ? n : `Room ${n}`;
+}
+
+// Route helper: show a real management/admin view and focus the real form
+// control the Pages action maps to. The server independently authorizes each
+// action, so this is navigation only.
+function goToManagement(focusSelector) {
+  switchView("managementView");
+  document.body.dataset.navKey = "manageShiftsView";
+  $$("#sidebarNav .nav-item").forEach(item => item.classList.toggle("active", item.dataset.navKey === "manageShiftsView"));
+  const el = focusSelector ? $(focusSelector) : null;
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof el.focus === "function") el.focus();
+  }
+}
+
+// ─── Pages view: Availability ────────────────────────────────────
+function pagesAvailabilityDays() {
+  return DASHBOARD_DAYS.filter(day => AVAILABILITY_DAYS.includes(day));
+}
+
+function renderAvailabilityPage() {
+  const container = $("#availabilityPageContent");
+  if (!container || !currentUser || needsApplication(currentUser)) return;
+  const availability = normalizeAvailability(currentUser.availability);
+  const days = pagesAvailabilityDays();
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Availability</h1>
+        <p>Select the hours you're available each day — tap time chips to toggle</p>
+      </div>
+      <button id="savePageAvailabilityBtn" class="btn btn-primary" type="button">Save Availability</button>
+    </div>
+    <div class="card animate-in">
+      <div class="card-body">
+        ${days.map(day => {
+          const selected = availability[day] || [];
+          return `
+          <div class="avail-day">
+            <div class="avail-day-label">
+              <strong>${escapeHtml(day)}</strong>
+              <span class="text-dim text-xs" data-avail-count="${escapeHtml(day)}">${selected.length} hours selected</span>
+            </div>
+            <div class="avail-chips" data-page-avail-day="${escapeHtml(day)}">
+              ${AVAILABILITY_HOURS.map(hour => `
+                <div class="time-chip ${selected.includes(hour) ? "selected" : ""}" role="button" tabindex="0" data-page-avail-hour="${escapeHtml(hour)}">${escapeHtml(pagesHour24(hour))}</div>
+              `).join("")}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+  container.querySelectorAll("[data-page-avail-hour]").forEach(chip => {
+    const toggle = () => togglePageAvailabilityChip(chip);
+    chip.addEventListener("click", toggle);
+    chip.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+    });
+  });
+  container.querySelector("#savePageAvailabilityBtn")?.addEventListener("click", savePageAvailability);
+}
+
+function togglePageAvailabilityChip(chip) {
+  chip.classList.toggle("selected");
+  const dayWrap = chip.closest("[data-page-avail-day]");
+  if (!dayWrap) return;
+  const day = dayWrap.dataset.pageAvailDay;
+  const count = dayWrap.parentElement.querySelector(`[data-avail-count="${day}"]`);
+  const selected = dayWrap.querySelectorAll(".time-chip.selected").length;
+  if (count) count.textContent = `${selected} hours selected`;
+}
+
+async function savePageAvailability() {
+  // Merge the convention-day board with any days not shown here (e.g.
+  // Wednesday / Monday) so we never drop a volunteer's existing availability.
+  const merged = normalizeAvailability(currentUser.availability);
+  pagesAvailabilityDays().forEach(day => {
+    merged[day] = Array.from($(`#availabilityPageContent [data-page-avail-day="${day}"]`)?.querySelectorAll(".time-chip.selected") || [])
+      .map(chip => chip.dataset.pageAvailHour);
+  });
+  try {
+    const data = await apiRequest("save_availability", { availability: merged });
+    applyState(data);
+    showDialog(["Availability saved. Coordinators can now see your open hours."]);
+  } catch (err) {
+    showDialog([err.message]);
+  }
+}
+
+// ─── Pages view: Shift Board ─────────────────────────────────────
+let shiftBoardDayFilter = "all";
+let shiftBoardDeptFilter = null;
+
+function renderShiftBoardPage() {
+  const container = $("#shiftBoardContent");
+  if (!container || !currentUser || needsApplication(currentUser)) return;
+  const myDept = pagesUserDept();
+  if (shiftBoardDeptFilter === null) shiftBoardDeptFilter = myDept || "";
+  const departments = Array.from(new Set(shifts.map(shift => shift.department).filter(Boolean))).sort();
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Shift Board</h1>
+        <p>Open shifts in your department (${escapeHtml(myDept || "Unassigned")})</p>
+      </div>
+      <div class="segmented" id="shiftBoardDaySegment" role="group" aria-label="Filter shifts by day">
+        <button class="${shiftBoardDayFilter === "all" ? "active" : ""}" data-shiftboard-day="all">All Days</button>
+        ${DASHBOARD_DAYS.map(day => `<button class="${shiftBoardDayFilter === day ? "active" : ""}" data-shiftboard-day="${escapeHtml(day)}">${escapeHtml(day.slice(0, 3))}</button>`).join("")}
+      </div>
+    </div>
+    <div class="filter-bar">
+      <select class="form-select" id="shiftBoardDeptFilter">
+        <option value="">All Departments</option>
+        ${departments.map(dept => `<option value="${escapeHtml(dept)}" ${dept === shiftBoardDeptFilter ? "selected" : ""}>${escapeHtml(dept)}</option>`).join("")}
+      </select>
+    </div>
+    <div id="shiftBoardGrid" class="shift-grid"></div>
+  `;
+  container.querySelectorAll("[data-shiftboard-day]").forEach(button => {
+    button.addEventListener("click", () => {
+      shiftBoardDayFilter = button.dataset.shiftboardDay;
+      container.querySelectorAll("[data-shiftboard-day]").forEach(other => other.classList.toggle("active", other.dataset.shiftboardDay === shiftBoardDayFilter));
+      renderShiftBoardGrid();
+    });
+  });
+  const deptSelect = container.querySelector("#shiftBoardDeptFilter");
+  if (deptSelect) deptSelect.addEventListener("change", () => { shiftBoardDeptFilter = deptSelect.value; renderShiftBoardGrid(); });
+  renderShiftBoardGrid();
+}
+
+function renderShiftBoardGrid() {
+  const grid = $("#shiftBoardGrid");
+  if (!grid) return;
+  const myDept = pagesUserDept();
+  const filtered = sortShifts(shifts.filter(shift => {
+    const day = shift.day || shift.shift_day;
+    if (shiftBoardDayFilter !== "all" && day !== shiftBoardDayFilter) return false;
+    if (shiftBoardDeptFilter && shift.department !== shiftBoardDeptFilter) return false;
+    return true;
+  }), "day");
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state"><p>No shifts match this filter.</p></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(shift => {
+    const assigned = shiftAssignedUsers(shift);
+    const capacity = Number(shift.capacity || 0);
+    const pct = capacity > 0 ? Math.min(Math.round(assigned.length / capacity * 100), 100) : 0;
+    const isFull = capacity > 0 && assigned.length >= capacity;
+    const inDept = shift.department === myDept;
+    const mine = userHasShift(currentUser, shift.id);
+    const day = shift.day || shift.shift_day;
+    const time = shift.time || shift.shift_time || "";
+    let action = "";
+    if (mine) action = `<button class="btn btn-sm btn-ghost" disabled>Assigned</button>`;
+    else if (!isFull && inDept) action = `<button class="btn btn-sm btn-primary" data-pickup-shift="${escapeHtml(shift.id)}">Pick Up</button>`;
+    else if (!isFull) action = `<button class="btn btn-sm btn-ghost" disabled>Wrong Dept</button>`;
+    return `
+      <div class="shift-card animate-in" data-dept="${escapeHtml(shift.department)}" style="--dept-accent:${pagesDeptColor(shift.department)};">
+        <div class="shift-card-header">
+          <div>
+            <div class="shift-title">${escapeHtml(shift.title)}</div>
+            <div class="shift-dept">${escapeHtml(shift.department)}</div>
+          </div>
+          ${isFull ? `<span class="badge badge-danger">Full</span>` : `<span class="badge badge-success">Open</span>`}
+        </div>
+        <div class="shift-meta">
+          <div class="shift-meta-row">${NAV_ICONS.availability}<span>${escapeHtml(day)} · ${escapeHtml(time)}</span></div>
+          <div class="shift-meta-row">${NAV_ICONS.shifts}<span>${escapeHtml(String(shift.hours || 0))} hour shift</span></div>
+          <div class="shift-meta-row">${NAV_ICONS.roster}<span>${assigned.length}/${escapeHtml(String(capacity))} assigned</span></div>
+          ${shift.note ? `<div class="shift-meta-row" style="color:var(--text-3);">${NAV_ICONS.log}<span>${escapeHtml(shift.note)}</span></div>` : ""}
+        </div>
+        <div class="shift-capacity-bar">
+          <div class="shift-capacity-fill" style="width:${pct}%;background:${isFull ? "var(--danger)" : "var(--success)"};"></div>
+        </div>
+        <div class="shift-footer">
+          <span class="text-xs text-dim">${inDept ? "In your department" : "Other department"}</span>
+          ${action}
+        </div>
+      </div>
+    `;
+  }).join("");
+  grid.querySelectorAll("[data-pickup-shift]").forEach(button => {
+    button.addEventListener("click", () => pickupShiftFromBoard(button.dataset.pickupShift));
+  });
+}
+
+async function pickupShiftFromBoard(shiftId) {
+  const shift = shifts.find(item => String(item.id) === String(shiftId));
+  if (!shift) return;
+  if (!confirm(`Add ${shift.title} to your schedule?`)) return;
+  selectedShiftIds.add(String(shiftId));
+  await saveMySchedule();
+}
+
+// ─── Pages view: My Shifts ───────────────────────────────────────
+function renderMyShiftsPage() {
+  const container = $("#myShiftsPageContent");
+  if (!container || !currentUser || needsApplication(currentUser)) return;
+  const assigned = sortShifts(shifts.filter(shift => userHasShift(currentUser, shift.id)), "day");
+  const totalHours = assigned.reduce((sum, shift) => sum + Number(shift.hours || 0), 0);
+  const daysWorked = Array.from(new Set(assigned.map(shift => shift.day || shift.shift_day).filter(Boolean)));
+  const foodEligible = daysWorked.length > 0;
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>My Shifts</h1>
+        <p>Saved shifts, total hours, and food eligibility</p>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card animate-in"><div class="stat-value">${assigned.length}</div><div class="stat-label">Saved Shifts</div></div>
+      <div class="stat-card success animate-in"><div class="stat-value">${totalHours}</div><div class="stat-label">Total Hours</div></div>
+      <div class="stat-card info animate-in"><div class="stat-value">${daysWorked.length}</div><div class="stat-label">Days Working</div></div>
+      <div class="stat-card ${foodEligible ? "success" : "warning"} animate-in">
+        <div class="stat-value">${foodEligible ? "✓" : "—"}</div>
+        <div class="stat-label">Food Eligible</div>
+        <div class="stat-sub">${foodEligible ? escapeHtml(daysWorked.join(", ")) : "Pick up a shift"}</div>
+      </div>
+    </div>
+    <div class="card animate-in">
+      <div class="card-header"><span class="card-title">Shift Schedule</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Shift</th><th>Department</th><th>Day</th><th>Time</th><th>Hours</th><th>Status</th></tr></thead>
+          <tbody>
+            ${assigned.length ? assigned.map(shift => `
+              <tr>
+                <td class="font-semibold">${escapeHtml(shift.title)}</td>
+                <td><span class="badge badge-info">${escapeHtml(shift.department)}</span></td>
+                <td>${escapeHtml(shift.day || shift.shift_day)}</td>
+                <td class="mono">${escapeHtml(shift.time || shift.shift_time || "")}</td>
+                <td><span class="badge badge-brand">${escapeHtml(String(shift.hours || 0))}h</span></td>
+                <td><span class="badge badge-success badge-dot">Confirmed</span></td>
+              </tr>
+            `).join("") : `<tr><td colspan="6"><div class="empty-state"><p>No shifts yet — head to the Shift Board to pick some up!</p></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Pages view: Manage Shifts (management only) ─────────────────
+let manageShiftsDeptFilter = "";
+let manageShiftsDayFilter = "";
+
+function renderManageShiftsPage() {
+  const container = $("#manageShiftsContent");
+  if (!container) return;
+  if (!isManagementUser(currentUser)) { container.innerHTML = ""; return; }
+  const departments = Array.from(new Set(managerVisibleShifts().map(shift => shift.department).filter(Boolean))).sort();
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Manage Shifts</h1>
+        <p>Create, edit, assign, and manage all shifts</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn" id="manageImportBtn" type="button">Import XLSX</button>
+        <button class="btn" id="manageExportBtn" type="button">Export</button>
+        <button class="btn btn-primary" id="manageNewShiftBtn" type="button">+ New Shift</button>
+      </div>
+    </div>
+    <div class="card animate-in">
+      <div class="card-header">
+        <span class="card-title">All Shifts</span>
+        <div class="filter-bar" style="margin:0;">
+          <select class="form-select" id="manageShiftsDeptFilter">
+            <option value="">All Departments</option>
+            ${departments.map(dept => `<option value="${escapeHtml(dept)}" ${dept === manageShiftsDeptFilter ? "selected" : ""}>${escapeHtml(dept)}</option>`).join("")}
+          </select>
+          <select class="form-select" id="manageShiftsDayFilter">
+            <option value="">All Days</option>
+            ${SCHEDULE_DAYS.map(day => `<option value="${escapeHtml(day)}" ${day === manageShiftsDayFilter ? "selected" : ""}>${escapeHtml(day)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Title</th><th>Department</th><th>Day</th><th>Time</th><th>Hours</th><th>Assigned</th><th>Actions</th></tr></thead>
+          <tbody id="manageShiftsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  container.querySelector("#manageImportBtn")?.addEventListener("click", () => goToManagement("#shiftImportFile"));
+  container.querySelector("#manageExportBtn")?.addEventListener("click", () => goToManagement("#exportScheduleBtn"));
+  container.querySelector("#manageNewShiftBtn")?.addEventListener("click", goToCreateShift);
+  container.querySelector("#manageShiftsDeptFilter")?.addEventListener("change", (event) => { manageShiftsDeptFilter = event.target.value; renderManageShiftsTable(); });
+  container.querySelector("#manageShiftsDayFilter")?.addEventListener("change", (event) => { manageShiftsDayFilter = event.target.value; renderManageShiftsTable(); });
+  renderManageShiftsTable();
+}
+
+function renderManageShiftsTable() {
+  const tbody = $("#manageShiftsTableBody");
+  if (!tbody) return;
+  const rows = sortShifts(managerVisibleShifts().filter(shift =>
+    (!manageShiftsDeptFilter || shift.department === manageShiftsDeptFilter) &&
+    (!manageShiftsDayFilter || (shift.day || shift.shift_day) === manageShiftsDayFilter)
+  ), "day");
+  tbody.innerHTML = rows.length ? rows.map(shift => {
+    const assigned = managerVisibleUsers().filter(user => userHasShift(user, shift.id));
+    const capacity = Number(shift.capacity || 0);
+    const assignedHtml = assigned.length
+      ? assigned.map(user => `<span class="badge badge-brand" title="${escapeHtml(user.name)}" style="margin:2px;">${escapeHtml(initials(user.name))}</span>`).join("")
+      : `<span class="badge badge-warning">Unassigned</span>`;
+    return `
+      <tr>
+        <td class="font-semibold">${escapeHtml(shift.title)}${shift.note ? `<br><span class="text-xs text-dim">${escapeHtml(shift.note)}</span>` : ""}</td>
+        <td><span class="badge badge-info">${escapeHtml(shift.department)}</span></td>
+        <td>${escapeHtml(shift.day || shift.shift_day)}</td>
+        <td class="mono">${escapeHtml(shift.time || shift.shift_time || "")}</td>
+        <td>${escapeHtml(String(shift.hours || 0))}h</td>
+        <td>${assignedHtml} <span class="text-xs text-dim">(${assigned.length}/${escapeHtml(String(capacity))})</span></td>
+        <td>
+          <div class="manage-actions">
+            <button class="btn btn-sm btn-ghost" data-manage-assign="${escapeHtml(shift.id)}">Assign</button>
+            <button class="btn btn-sm btn-ghost" data-manage-edit="${escapeHtml(shift.id)}">Edit</button>
+            <button class="btn btn-sm btn-danger" data-manage-delete="${escapeHtml(shift.id)}">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("") : `<tr><td colspan="7"><div class="empty-state"><p>No shifts match this filter. Use “+ New Shift” to create one.</p></div></td></tr>`;
+  tbody.querySelectorAll("[data-manage-assign]").forEach(button => button.addEventListener("click", () => manageShiftRouteToAssign(button.dataset.manageAssign)));
+  tbody.querySelectorAll("[data-manage-edit]").forEach(button => button.addEventListener("click", () => manageShiftRouteToAssign(button.dataset.manageEdit)));
+  tbody.querySelectorAll("[data-manage-delete]").forEach(button => button.addEventListener("click", () => manageShiftDeleteFromPage(button.dataset.manageDelete)));
+}
+
+function manageShiftFocus(shiftId) {
+  // Align the management department filter with the target shift so
+  // selectedManagedShift() resolves to exactly this shift.
+  const shift = shifts.find(item => String(item.id) === String(shiftId));
+  const deptFilter = $("#manageShiftDepartmentFilter");
+  if (shift && deptFilter && isFullAdmin(currentUser) &&
+      Array.from(deptFilter.options).some(option => option.value === shift.department)) {
+    deptFilter.value = shift.department;
+  }
+  focusedManagedShiftId = shiftId;
+}
+
+function manageShiftRouteToAssign(shiftId) {
+  manageShiftFocus(shiftId);
+  goToManagement("#manageShiftSelect");
+  renderShiftManagement();
+}
+
+async function manageShiftDeleteFromPage(shiftId) {
+  manageShiftFocus(shiftId);
+  renderShiftManagement();
+  await deleteManagedShift();
+}
+
+// ─── Pages view: Volunteer Roster (management only) ──────────────
+let rosterPageSearch = "";
+let rosterPageDept = "";
+let rosterPageGender = "";
+
+function renderRosterPage() {
+  const container = $("#rosterPageContent");
+  if (!container) return;
+  if (!isManagementUser(currentUser)) { container.innerHTML = ""; return; }
+  const departments = Array.from(new Set(managerVisibleUsers().map(userDepartment).filter(Boolean))).sort();
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Volunteer Roster</h1>
+        <p>Search, filter, and manage all volunteers</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn" id="rosterPageDietaryExport" type="button">Export Dietary List</button>
+        <button class="btn" id="rosterPageRosterExport" type="button">Export Roster</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input class="form-input" id="rosterPageSearch" placeholder="🔍 Search by name..." value="${escapeHtml(rosterPageSearch)}">
+      <select class="form-select" id="rosterPageDeptFilter">
+        <option value="">All Departments</option>
+        ${departments.map(dept => `<option value="${escapeHtml(dept)}" ${dept === rosterPageDept ? "selected" : ""}>${escapeHtml(dept)}</option>`).join("")}
+      </select>
+      <select class="form-select" id="rosterPageGenderFilter">
+        <option value="">All Genders</option>
+        <option value="Male" ${rosterPageGender === "Male" ? "selected" : ""}>Male</option>
+        <option value="Female" ${rosterPageGender === "Female" ? "selected" : ""}>Female</option>
+        <option value="Other" ${rosterPageGender === "Other" ? "selected" : ""}>Other</option>
+      </select>
+    </div>
+    <div class="card animate-in">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Volunteer</th><th>Discord</th><th>Department</th><th>Dietary</th><th>Hotel</th><th>Checked In</th><th>Actions</th></tr></thead>
+          <tbody id="rosterPageTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  container.querySelector("#rosterPageSearch")?.addEventListener("input", (event) => { rosterPageSearch = event.target.value; renderRosterPageTable(); });
+  container.querySelector("#rosterPageDeptFilter")?.addEventListener("change", (event) => { rosterPageDept = event.target.value; renderRosterPageTable(); });
+  container.querySelector("#rosterPageGenderFilter")?.addEventListener("change", (event) => { rosterPageGender = event.target.value; renderRosterPageTable(); });
+  container.querySelector("#rosterPageDietaryExport")?.addEventListener("click", exportAllergiesCsv);
+  container.querySelector("#rosterPageRosterExport")?.addEventListener("click", () => goToManagement("#exportScheduleBtn"));
+  renderRosterPageTable();
+}
+
+function renderRosterPageTable() {
+  const tbody = $("#rosterPageTableBody");
+  if (!tbody) return;
+  const search = rosterPageSearch.trim().toLowerCase();
+  const rows = managerVisibleUsers()
+    .filter(user => user.status === "approved")
+    .filter(user => !search || String(user.name || "").toLowerCase().includes(search))
+    .filter(user => !rosterPageDept || userDepartment(user) === rosterPageDept)
+    .filter(user => !rosterPageGender || pagesGenderLabel(user) === rosterPageGender)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  tbody.innerHTML = rows.length ? rows.map(user => {
+    const dept = userDepartment(user) || "Unassigned";
+    const discord = user.discord || user.discord_username || user.discordUsername || "—";
+    const diet = pagesDietaryLabel(user);
+    const hotel = (user.hotelNeeded || user.hotel_needed) === "Yes";
+    const checkedIn = !!user.clockedIn;
+    const buddy = user.buddyRequest || user.buddy_request || user.friend || "";
+    return `
+      <tr>
+        <td>
+          <div class="roster-cell">
+            <div class="roster-avatar" style="background:${pagesAvatarGradient(user.id || user.name)};">${escapeHtml(initials(user.name))}</div>
+            <div>
+              <div class="font-semibold">${escapeHtml(user.name)}</div>
+              ${buddy ? `<div class="text-xs text-dim">Buddy: ${escapeHtml(buddy)}</div>` : ""}
+            </div>
+          </div>
+        </td>
+        <td class="mono text-sm">${escapeHtml(discord)}</td>
+        <td><span class="badge badge-info">${escapeHtml(dept)}</span></td>
+        <td>${diet ? `<span class="badge badge-warning">⚠ ${escapeHtml(diet)}</span>` : `<span class="text-dim">—</span>`}</td>
+        <td>${hotel ? `<span class="badge badge-brand">Yes</span>` : `<span class="text-dim">No</span>`}</td>
+        <td>${checkedIn ? `<span class="badge badge-success badge-dot">Checked In</span>` : `<span class="badge badge-neutral">Not yet</span>`}</td>
+        <td>
+          <button class="btn btn-sm btn-ghost" data-roster-view="${escapeHtml(user.id)}">View</button>
+          <button class="btn btn-sm btn-ghost" data-roster-dm="${escapeHtml(user.id)}">DM</button>
+        </td>
+      </tr>
+    `;
+  }).join("") : `<tr><td colspan="7"><div class="empty-state"><p>No volunteers match these filters.</p></div></td></tr>`;
+  tbody.querySelectorAll("[data-roster-view]").forEach(button => button.addEventListener("click", () => window.openVolunteerProfile(button.dataset.rosterView)));
+  tbody.querySelectorAll("[data-roster-dm]").forEach(button => button.addEventListener("click", () => rosterPageDm(button.dataset.rosterDm)));
+}
+
+async function rosterPageDm(userId) {
+  const user = users.find(item => String(item.id) === String(userId));
+  if (!user) return;
+  const message = prompt(`Send a Discord DM to ${user.name}:`, "");
+  if (!message || !message.trim()) return;
+  try {
+    const data = await apiRequest("send_discord_dm", { userId, message: message.trim() });
+    applyState(data);
+    showDialog(["Discord DM sent."]);
+  } catch (err) {
+    showDialog([err.message]);
+  }
+}
+
+// ─── Pages view: Food & Counts (management only) ─────────────────
+let foodPageDay = "Friday";
+
+function renderFoodPage() {
+  const container = $("#foodPageContent");
+  if (!container) return;
+  if (!isManagementUser(currentUser)) { container.innerHTML = ""; return; }
+  if (!DASHBOARD_DAYS.includes(foodPageDay)) foodPageDay = DASHBOARD_DAYS[1] || DASHBOARD_DAYS[0];
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Food &amp; Counts</h1>
+        <p>Daily volunteer counts and meal estimates based on shift windows</p>
+      </div>
+    </div>
+    <div class="tabs" id="foodDayTabs">
+      ${DASHBOARD_DAYS.map(day => `<div class="tab ${day === foodPageDay ? "active" : ""}" role="button" tabindex="0" data-food-day="${escapeHtml(day)}">${escapeHtml(day)}</div>`).join("")}
+    </div>
+    <div id="foodDayContent"></div>
+  `;
+  container.querySelectorAll("[data-food-day]").forEach(tab => {
+    const go = () => {
+      foodPageDay = tab.dataset.foodDay;
+      container.querySelectorAll("[data-food-day]").forEach(other => other.classList.toggle("active", other.dataset.foodDay === foodPageDay));
+      renderFoodDay();
+    };
+    tab.addEventListener("click", go);
+    tab.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); go(); }
+    });
+  });
+  renderFoodDay();
+}
+
+function renderFoodDay() {
+  const container = $("#foodDayContent");
+  if (!container) return;
+  const day = foodPageDay;
+  const dayShifts = managerVisibleShifts().filter(shift => (shift.day || shift.shift_day) === day);
+  const visibleUsers = managerVisibleUsers();
+  const assignedIds = new Set();
+  const mealIds = { breakfast: new Set(), lunch: new Set(), dinner: new Set() };
+  dayShifts.forEach(shift => {
+    visibleUsers.forEach(user => {
+      if (!userHasShift(user, shift.id)) return;
+      assignedIds.add(String(user.id));
+      Object.keys(mealIds).forEach(meal => {
+        if (shiftOverlapsWindow(shift, mealWindows[meal])) mealIds[meal].add(String(user.id));
+      });
+    });
+  });
+  const dietary = {};
+  assignedIds.forEach(id => {
+    const user = visibleUsers.find(item => String(item.id) === id);
+    if (!user) return;
+    const diet = pagesDietaryLabel(user) || "Standard";
+    dietary[diet] = (dietary[diet] || 0) + 1;
+  });
+  const mealCards = [
+    { key: "breakfast", label: "Breakfast", count: mealIds.breakfast.size, bg: "rgba(245,158,11,.15)", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>' },
+    { key: "lunch", label: "Lunch", count: mealIds.lunch.size, bg: "rgba(16,185,129,.15)", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M3 11h18M5 11a7 7 0 0114 0M3 11l1 6h16l1-6"/></svg>' },
+    { key: "dinner", label: "Dinner", count: mealIds.dinner.size, bg: "rgba(99,102,241,.15)", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M21 15.5A9 9 0 1112 3a7 7 0 009 12.5z"/></svg>' }
+  ];
+  const dietEntries = Object.entries(dietary).sort((a, b) => b[1] - a[1]);
+  container.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card animate-in"><div class="stat-value">${assignedIds.size}</div><div class="stat-label">Volunteers on ${escapeHtml(day)}</div></div>
+    </div>
+    <div class="meal-grid mb-6">
+      ${mealCards.map(meal => `
+        <div class="meal-card animate-in">
+          <div class="meal-icon-circle" style="background:${meal.bg};">${meal.icon}</div>
+          <div class="meal-count">${meal.count}</div>
+          <div class="meal-label">${escapeHtml(meal.label)}</div>
+          <div class="meal-window">${escapeHtml(mealWindows[meal.key] || DEFAULT_MEAL_WINDOWS[meal.key] || "")}</div>
+        </div>
+      `).join("")}
+    </div>
+    <div class="card animate-in">
+      <div class="card-header"><span class="card-title">Dietary Breakdown — ${escapeHtml(day)}</span></div>
+      <div class="card-body">
+        ${dietEntries.length ? dietEntries.map(([diet, count]) => `
+          <div class="dietary-row">
+            <span>${diet === "Standard" ? `<span class="badge badge-neutral">Standard</span>` : `<span class="badge badge-warning">⚠ ${escapeHtml(diet)}</span>`}</span>
+            <span class="font-bold">${count}</span>
+          </div>
+        `).join("") : `<div class="empty-state"><p>No volunteers scheduled on ${escapeHtml(day)} yet.</p></div>`}
+      </div>
+    </div>
+  `;
+}
+
+// ─── Pages view: Hotels (management only) ────────────────────────
+let hotelsPageGender = "all";
+
+function renderHotelsPage() {
+  const container = $("#hotelsPageContent");
+  if (!container) return;
+  if (!isManagementUser(currentUser)) { container.innerHTML = ""; return; }
+  const rooms = normalizedHotelRooms();
+  const hotelUsers = managerVisibleUsers().filter(user => (user.hotelNeeded || user.hotel_needed || "No") === "Yes");
+  const housed = hotelUsers.filter(user => user.hotelRoom).length;
+  const overCapacity = rooms.filter(room => hotelUsers.filter(user => String(user.hotelRoom) === String(room.room_name)).length > Number(room.capacity || 4)).length;
+  const pending = hotelUsers.filter(user => !user.hotelCheckedIn).length;
+  container.innerHTML = `
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Hotel Management</h1>
+        <p>Room assignments, capacity tracking, and check-in status</p>
+      </div>
+      <div class="page-actions">
+        <div class="segmented" id="hotelsGenderSegment" role="group" aria-label="Filter rooms by room type">
+          ${[["all", "All"], ["Male", "Male"], ["Female", "Female"], ["Other", "Other"]].map(([value, label]) => `<button class="${hotelsPageGender === value ? "active" : ""}" data-hotel-gender="${value}">${label}</button>`).join("")}
+        </div>
+        <button class="btn btn-primary" id="hotelsAddRoomBtn" type="button">+ Add Room</button>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card animate-in"><div class="stat-value">${rooms.length}</div><div class="stat-label">Total Rooms</div></div>
+      <div class="stat-card success animate-in"><div class="stat-value">${housed}</div><div class="stat-label">Volunteers Housed</div></div>
+      <div class="stat-card warning animate-in"><div class="stat-value">${overCapacity}</div><div class="stat-label">Over Capacity</div></div>
+      <div class="stat-card info animate-in"><div class="stat-value">${pending}</div><div class="stat-label">Pending Check-In</div></div>
+    </div>
+    <div id="hotelsPageGrid" class="room-grid"></div>
+  `;
+  container.querySelectorAll("[data-hotel-gender]").forEach(button => button.addEventListener("click", () => {
+    hotelsPageGender = button.dataset.hotelGender;
+    container.querySelectorAll("[data-hotel-gender]").forEach(other => other.classList.toggle("active", other.dataset.hotelGender === hotelsPageGender));
+    renderHotelsPageGrid();
+  }));
+  container.querySelector("#hotelsAddRoomBtn")?.addEventListener("click", () => goToManagement("#hotelRoomName"));
+  renderHotelsPageGrid();
+}
+
+function renderHotelsPageGrid() {
+  const grid = $("#hotelsPageGrid");
+  if (!grid) return;
+  const rooms = normalizedHotelRooms();
+  const hotelUsers = managerVisibleUsers().filter(user => (user.hotelNeeded || user.hotel_needed || "No") === "Yes");
+  if (!rooms.length) {
+    grid.innerHTML = `<div class="empty-state"><p>No hotel rooms yet. Use “+ Add Room” to create the first room.</p></div>`;
+    return;
+  }
+  grid.innerHTML = rooms.map(room => {
+    const capacity = Number(room.capacity || 4);
+    const total = hotelUsers.filter(user => String(user.hotelRoom) === String(room.room_name));
+    let occupants = total;
+    if (hotelsPageGender !== "all") occupants = total.filter(user => pagesGenderLabel(user) === hotelsPageGender);
+    const over = total.length > capacity;
+    return `
+      <div class="room-card ${over ? "over-capacity" : ""} animate-in">
+        <div class="room-header">
+          <span class="room-number">${escapeHtml(pagesRoomTitle(room.room_name))}</span>
+          <span class="badge ${over ? "badge-danger" : total.length === capacity ? "badge-warning" : "badge-success"}">${total.length}/${capacity}</span>
+        </div>
+        ${over ? `<div class="badge badge-danger" style="margin-bottom:10px;">⚠ Over capacity!</div>` : ""}
+        <div class="room-occupants">
+          ${occupants.length ? occupants.map(user => `
+            <div class="room-occupant">
+              <div class="room-occupant-avatar" style="background:${pagesAvatarGradient(user.id || user.name)};">${escapeHtml(initials(user.name))}</div>
+              <span>${escapeHtml(user.name)}</span>
+              ${user.hotelCheckedIn ? `<span class="badge badge-success" style="margin-left:auto;">✓</span>` : `<span class="badge badge-neutral" style="margin-left:auto;">Pending</span>`}
+            </div>
+          `).join("") : `<div class="empty-state" style="padding:20px;"><p>Empty room</p></div>`}
+        </div>
+        <div class="shift-footer">
+          <span class="text-xs text-dim">Capacity: ${capacity}</span>
+          <button class="btn btn-sm btn-ghost" data-hotel-assign="${escapeHtml(room.room_name)}">Assign</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+  grid.querySelectorAll("[data-hotel-assign]").forEach(button => button.addEventListener("click", () => goToManagement("#hotelRoomList")));
+}
+
+// ─── Pages view: Guest Relations metrics ─────────────────────────
+function renderGuestRelationsPage() {
+  const stats = $("#guestRelationsStats");
+  if (!stats) return;
+  if (!(currentUser?.canGuestRelations || isManagementUser(currentUser))) { stats.innerHTML = ""; return; }
+  const flights = Array.isArray(guestFlights) ? guestFlights : [];
+  const arrived = flights.filter(flight => /arriv/i.test(String(flight.flight_status || ""))).length;
+  const inTransit = flights.filter(flight => /transit|air|en route|route|boarding|departed/i.test(String(flight.flight_status || ""))).length;
+  const scheduled = Math.max(flights.length - arrived - inTransit, 0);
+  stats.innerHTML = `
+    <div class="stat-card animate-in"><div class="stat-value">${flights.length}</div><div class="stat-label">Tracked Guests</div></div>
+    <div class="stat-card success animate-in"><div class="stat-value">${arrived}</div><div class="stat-label">Arrived</div></div>
+    <div class="stat-card warning animate-in"><div class="stat-value">${inTransit}</div><div class="stat-label">In Transit</div></div>
+    <div class="stat-card info animate-in"><div class="stat-value">${scheduled}</div><div class="stat-label">Scheduled</div></div>
+  `;
+}
 
 init();
 
