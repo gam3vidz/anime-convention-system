@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/stripe.php';
+
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
@@ -61,6 +63,352 @@ function requireCsrfToken(): void {
     $expected = (string)($_SESSION['csrf_token'] ?? '');
     if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {
         fail('Invalid or missing CSRF token.', 403);
+    }
+}
+
+function publicEventPayload(array $config): array {
+    $event = $config['public_event'] ?? [];
+    if (!is_array($event)) $event = [];
+
+    $catalog = array_values(stripeTicketCatalog($config));
+    $stripeSecret = trim((string)($config['stripe_secret_key'] ?? ''));
+    $webhookSecret = trim((string)($config['stripe_webhook_secret'] ?? ''));
+    return [
+        'csrfToken' => (string)($_SESSION['csrf_token'] ?? ''),
+        'event' => $event,
+        'tickets' => $catalog,
+        'paymentConfigured' => str_starts_with($stripeSecret, 'sk_test_') && $webhookSecret !== '',
+        'paymentMode' => 'test',
+    ];
+}
+
+function checkoutCanonicalUrl(array $config): string {
+    $event = $config['public_event'] ?? [];
+    $canonicalUrl = is_array($event) ? rtrim(trim((string)($event['canonical_url'] ?? '')), '/') : '';
+    if ($canonicalUrl === '' || filter_var($canonicalUrl, FILTER_VALIDATE_URL) === false) {
+        throw new RuntimeException('Set a valid public_event canonical_url before enabling ticket sales.');
+    }
+    $scheme = strtolower((string)parse_url($canonicalUrl, PHP_URL_SCHEME));
+    if (!in_array($scheme, ['https', 'http'], true)) {
+        throw new RuntimeException('The public event URL must use HTTP or HTTPS.');
+    }
+    return $canonicalUrl;
+}
+
+function checkoutRequestItems(array $input): array {
+    if (isset($input['items']) && is_array($input['items'])) {
+        return array_map(
+            fn($item): array => is_array($item)
+                ? ['sku' => $item['sku'] ?? '', 'quantity' => $item['quantity'] ?? null]
+                : [],
+            $input['items']
+        );
+    }
+    return [[
+        'sku' => $input['sku'] ?? '',
+        'quantity' => $input['quantity'] ?? null,
+    ]];
+}
+
+function checkoutRequestFingerprint(string $email, array $items): string {
+    $fingerprintItems = array_map(
+        fn(array $item): array => [
+            'sku' => (string)$item['sku'],
+            'quantity' => (int)$item['quantity'],
+            'name' => (string)$item['name'],
+            'price_cents' => (int)$item['price_cents'],
+            'currency' => (string)$item['currency'],
+        ],
+        $items
+    );
+    usort($fingerprintItems, fn(array $left, array $right): int => strcmp($left['sku'], $right['sku']));
+    return hash('sha256', json_encode([
+        'email' => strtolower($email),
+        'items' => $fingerprintItems,
+    ], JSON_UNESCAPED_SLASHES));
+}
+
+function findTicketOrderByIdempotency(PDO $pdo, string $idempotencyKey): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM ticket_orders WHERE idempotency_key = ? LIMIT 1");
+    $stmt->execute([$idempotencyKey]);
+    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $order ?: null;
+}
+
+function createPendingTicketOrder(
+    PDO $pdo,
+    string $idempotencyKey,
+    string $fingerprint,
+    string $email,
+    array $items
+): array {
+    $existing = findTicketOrderByIdempotency($pdo, $idempotencyKey);
+    if ($existing) return $existing;
+
+    $currency = (string)$items[0]['currency'];
+    $total = stripeCheckoutTotal($items);
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("INSERT INTO ticket_orders
+            (idempotency_key, request_fingerprint, purchaser_email, currency, amount_total, payment_status)
+            VALUES (?, ?, ?, ?, ?, 'pending')");
+        $stmt->execute([$idempotencyKey, $fingerprint, $email, $currency, $total]);
+        $orderId = (int)$pdo->lastInsertId();
+        $itemStmt = $pdo->prepare("INSERT INTO ticket_order_items
+            (order_id, sku, ticket_name, unit_amount, quantity, currency)
+            VALUES (?, ?, ?, ?, ?, ?)");
+        foreach ($items as $item) {
+            $itemStmt->execute([
+                $orderId,
+                (string)$item['sku'],
+                (string)$item['name'],
+                (int)$item['price_cents'],
+                (int)$item['quantity'],
+                (string)$item['currency'],
+            ]);
+        }
+        $pdo->commit();
+    } catch (PDOException $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ((string)$error->getCode() !== '23000') throw $error;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+
+    $order = findTicketOrderByIdempotency($pdo, $idempotencyKey);
+    if (!$order) throw new RuntimeException('Could not persist the pending ticket order.');
+    return $order;
+}
+
+function stripeCheckoutFields(array $order, array $items, string $canonicalUrl): array {
+    $orderId = (string)$order['id'];
+    $fields = [
+        'mode' => 'payment',
+        'success_url' => $canonicalUrl . '/index.html?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url' => $canonicalUrl . '/index.html?checkout=cancel',
+        'customer_email' => (string)$order['purchaser_email'],
+        'client_reference_id' => $orderId,
+        'metadata' => [
+            'order_id' => $orderId,
+            'source' => 'delta_h_public_site',
+        ],
+        'payment_intent_data' => [
+            'metadata' => [
+                'order_id' => $orderId,
+            ],
+        ],
+    ];
+    foreach ($items as $index => $item) {
+        $fields['line_items'][$index] = [
+            'quantity' => (int)$item['quantity'],
+            'price_data' => [
+                'currency' => (string)$item['currency'],
+                'unit_amount' => (int)$item['price_cents'],
+                'product_data' => [
+                    'name' => (string)$item['name'],
+                    'description' => (string)$item['description'],
+                    'metadata' => [
+                        'sku' => (string)$item['sku'],
+                    ],
+                ],
+            ],
+        ];
+    }
+    return $fields;
+}
+
+function createStripeCheckout(PDO $pdo, array $config, array $input): array {
+    $secretKey = trim((string)($config['stripe_secret_key'] ?? ''));
+    $webhookSecret = trim((string)($config['stripe_webhook_secret'] ?? ''));
+    if (!str_starts_with($secretKey, 'sk_test_') || $webhookSecret === '') {
+        throw new DomainException('Ticket sales are not configured. The organizer must connect Stripe test mode first.');
+    }
+
+    $email = strtolower(trim((string)($input['email'] ?? '')));
+    if (strlen($email) > 254 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+        throw new InvalidArgumentException('Enter a valid email address for the ticket order.');
+    }
+    $idempotencyKey = trim((string)($input['idempotencyKey'] ?? $input['idempotency_key'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9_-]{24,128}$/', $idempotencyKey)) {
+        throw new InvalidArgumentException('Refresh the page and try checkout again.');
+    }
+
+    $catalog = stripeTicketCatalog($config);
+    $items = stripeNormalizeCheckoutItems(checkoutRequestItems($input), $catalog);
+    $fingerprint = checkoutRequestFingerprint($email, $items);
+    $order = createPendingTicketOrder($pdo, $idempotencyKey, $fingerprint, $email, $items);
+    if (!hash_equals((string)$order['request_fingerprint'], $fingerprint)) {
+        throw new InvalidArgumentException('That checkout token was already used for a different order.');
+    }
+    if (!empty($order['stripe_checkout_session_id']) && !empty($order['stripe_checkout_url'])) {
+        return [
+            'url' => (string)$order['stripe_checkout_url'],
+            'sessionId' => (string)$order['stripe_checkout_session_id'],
+        ];
+    }
+
+    $canonicalUrl = checkoutCanonicalUrl($config);
+    $session = stripeApiRequest(
+        $secretKey,
+        'checkout/sessions',
+        stripeCheckoutFields($order, $items, $canonicalUrl),
+        'delta-h-' . hash('sha256', $idempotencyKey)
+    );
+    $sessionId = trim((string)($session['id'] ?? ''));
+    $checkoutUrl = trim((string)($session['url'] ?? ''));
+    if (!preg_match('/^cs_test_[A-Za-z0-9_]+$/', $sessionId)
+        || filter_var($checkoutUrl, FILTER_VALIDATE_URL) === false
+        || strtolower((string)parse_url($checkoutUrl, PHP_URL_SCHEME)) !== 'https') {
+        throw new RuntimeException('Stripe returned an invalid Checkout Session.');
+    }
+
+    $stmt = $pdo->prepare("UPDATE ticket_orders
+        SET stripe_checkout_session_id = ?, stripe_checkout_url = ?
+        WHERE id = ? AND stripe_checkout_session_id IS NULL");
+    $stmt->execute([$sessionId, $checkoutUrl, (int)$order['id']]);
+    $saved = findTicketOrderByIdempotency($pdo, $idempotencyKey);
+    if (!$saved || empty($saved['stripe_checkout_session_id']) || empty($saved['stripe_checkout_url'])) {
+        throw new RuntimeException('Could not save the Stripe Checkout Session.');
+    }
+    return [
+        'url' => (string)$saved['stripe_checkout_url'],
+        'sessionId' => (string)$saved['stripe_checkout_session_id'],
+    ];
+}
+
+function checkoutStatus(PDO $pdo, string $sessionId): array {
+    if (!preg_match('/^cs_(?:test|live)_[A-Za-z0-9_]{20,255}$/', $sessionId)) {
+        throw new InvalidArgumentException('Invalid checkout session.');
+    }
+    $stmt = $pdo->prepare("SELECT id, payment_status
+        FROM ticket_orders WHERE stripe_checkout_session_id = ? LIMIT 1");
+    $stmt->execute([$sessionId]);
+    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$order) throw new OutOfBoundsException('Checkout not found.');
+
+    $status = (string)$order['payment_status'];
+    $response = ['status' => in_array($status, ['pending', 'paid', 'failed'], true) ? $status : 'pending'];
+    $response['tickets'] = [];
+    if ($status === 'paid') {
+        $ticketStmt = $pdo->prepare("SELECT t.ticket_code, t.sku, i.ticket_name
+            FROM event_tickets t
+            INNER JOIN ticket_order_items i ON i.id = t.order_item_id
+            WHERE t.order_id = ?
+            ORDER BY t.id");
+        $ticketStmt->execute([(int)$order['id']]);
+        foreach ($ticketStmt->fetchAll(PDO::FETCH_ASSOC) as $ticket) {
+            $response['tickets'][] = [
+                'code' => (string)$ticket['ticket_code'],
+                'sku' => (string)$ticket['sku'],
+                'name' => (string)$ticket['ticket_name'],
+            ];
+        }
+    }
+    return $response;
+}
+
+function issuePaidOrderTickets(PDO $pdo, int $orderId): void {
+    $itemStmt = $pdo->prepare("SELECT id, sku, quantity FROM ticket_order_items WHERE order_id = ? ORDER BY id");
+    $itemStmt->execute([$orderId]);
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM event_tickets WHERE order_item_id = ?");
+    $insertStmt = $pdo->prepare("INSERT INTO event_tickets
+        (order_id, order_item_id, sku, ticket_code, ticket_status, issued_at)
+        VALUES (?, ?, ?, ?, 'issued', NOW())");
+    foreach ($itemStmt->fetchAll(PDO::FETCH_ASSOC) as $item) {
+        $countStmt->execute([(int)$item['id']]);
+        $remaining = (int)$item['quantity'] - (int)$countStmt->fetchColumn();
+        for ($ticketIndex = 0; $ticketIndex < $remaining; $ticketIndex++) {
+            $inserted = false;
+            for ($attempt = 0; $attempt < 8 && !$inserted; $attempt++) {
+                try {
+                    $insertStmt->execute([
+                        $orderId,
+                        (int)$item['id'],
+                        (string)$item['sku'],
+                        stripeGenerateTicketCode(),
+                    ]);
+                    $inserted = true;
+                } catch (PDOException $error) {
+                    if ((string)$error->getCode() !== '23000') throw $error;
+                }
+            }
+            if (!$inserted) throw new RuntimeException('Could not generate a unique ticket code.');
+        }
+    }
+}
+
+function processStripeWebhookEvent(PDO $pdo, array $event): void {
+    $eventId = trim((string)($event['id'] ?? ''));
+    $eventType = trim((string)($event['type'] ?? ''));
+    $session = $event['data']['object'] ?? null;
+    if ($eventId === '' || !is_array($session)) {
+        throw new InvalidArgumentException('Invalid Stripe webhook event.');
+    }
+    if (!in_array($eventType, [
+        'checkout.session.completed',
+        'checkout.session.async_payment_succeeded',
+        'checkout.session.async_payment_failed',
+    ], true)) {
+        return;
+    }
+
+    $sessionId = trim((string)($session['id'] ?? ''));
+    if ($sessionId === '') throw new InvalidArgumentException('Stripe event is missing a Checkout Session id.');
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM ticket_orders
+            WHERE stripe_checkout_session_id = ? LIMIT 1 FOR UPDATE");
+        $stmt->execute([$sessionId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$order) {
+            $pdo->commit();
+            return;
+        }
+
+        $metadataOrderId = trim((string)($session['metadata']['order_id'] ?? ''));
+        if ($metadataOrderId !== '' && !hash_equals((string)$order['id'], $metadataOrderId)) {
+            throw new RuntimeException('Stripe order metadata does not match the Checkout Session.');
+        }
+
+        $markPaid = $eventType === 'checkout.session.async_payment_succeeded'
+            || ($eventType === 'checkout.session.completed' && (string)($session['payment_status'] ?? '') === 'paid');
+        $markFailed = $eventType === 'checkout.session.async_payment_failed';
+
+        if ($markPaid) {
+            $amountTotal = filter_var($session['amount_total'] ?? null, FILTER_VALIDATE_INT);
+            $currency = strtolower(trim((string)($session['currency'] ?? '')));
+            if ($amountTotal === false
+                || (int)$amountTotal !== (int)$order['amount_total']
+                || !hash_equals((string)$order['currency'], $currency)) {
+                throw new RuntimeException('Stripe payment amount or currency did not match the order.');
+            }
+            $paymentIntent = $session['payment_intent'] ?? '';
+            if (is_array($paymentIntent)) $paymentIntent = $paymentIntent['id'] ?? '';
+            $update = $pdo->prepare("UPDATE ticket_orders
+                SET payment_status = 'paid', stripe_payment_intent_id = ?,
+                    last_stripe_event_id = ?, paid_at = COALESCE(paid_at, NOW())
+                WHERE id = ?");
+            $update->execute([
+                substr((string)$paymentIntent, 0, 255),
+                substr($eventId, 0, 255),
+                (int)$order['id'],
+            ]);
+            issuePaidOrderTickets($pdo, (int)$order['id']);
+        } elseif ($markFailed && (string)$order['payment_status'] !== 'paid') {
+            $update = $pdo->prepare("UPDATE ticket_orders
+                SET payment_status = 'failed', last_stripe_event_id = ? WHERE id = ?");
+            $update->execute([substr($eventId, 0, 255), (int)$order['id']]);
+        } else {
+            $update = $pdo->prepare("UPDATE ticket_orders
+                SET last_stripe_event_id = ? WHERE id = ?");
+            $update->execute([substr($eventId, 0, 255), (int)$order['id']]);
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
     }
 }
 
@@ -1794,8 +2142,9 @@ $input = json_decode($rawInput, true);
 if (!is_array($input)) $input = [];
 
 $requestMethod = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-$getActions = ['session', 'discord_login', 'discord_callback', 'incident_evidence'];
-$externalPostActions = ['discord_interactions'];
+$getActions = ['session', 'public_event', 'checkout_status', 'discord_login', 'discord_callback', 'incident_evidence'];
+$getOnlyActions = ['public_event', 'checkout_status'];
+$externalPostActions = ['discord_interactions', 'stripe_webhook'];
 $cronActions = ['process_shift_alerts', 'process_flight_updates'];
 $expectedCronSecret = trim((string)($config['shift_alert_cron_secret'] ?? ''));
 $providedCronSecret = trim((string)($_SERVER['HTTP_X_DELTA_H_ALERT_KEY'] ?? ''));
@@ -1810,6 +2159,9 @@ if (!in_array($requestMethod, ['GET', 'POST'], true)) {
 if ($requestMethod === 'GET' && !in_array($action, $getActions, true)) {
     fail('This action requires POST.', 405);
 }
+if ($requestMethod === 'POST' && in_array($action, $getOnlyActions, true)) {
+    fail('This action requires GET.', 405);
+}
 if ($requestMethod === 'POST'
     && !in_array($action, $externalPostActions, true)
     && !$validCronSecret) {
@@ -1818,7 +2170,16 @@ if ($requestMethod === 'POST'
 
 // Centrally revoke blacklisted sessions before any protected routing or state exposure.
 // A blacklisted account is force-denied on its very next request even with a live PHP session.
-$blacklistExemptActions = ['discord_login', 'discord_callback', 'discord_interactions', 'logout'];
+$blacklistExemptActions = [
+    'public_event',
+    'checkout_status',
+    'create_checkout',
+    'stripe_webhook',
+    'discord_login',
+    'discord_callback',
+    'discord_interactions',
+    'logout',
+];
 $sessionUserId = (int)($_SESSION['user_id'] ?? 0);
 if ($sessionUserId > 0 && !in_array($action, $blacklistExemptActions, true) && !$validCronSecret) {
     $sessionUser = getUserRow($pdo, $sessionUserId);
@@ -1832,6 +2193,47 @@ if ($sessionUserId > 0 && !in_array($action, $blacklistExemptActions, true) && !
 
 try {
     switch ($action) {
+        case 'public_event':
+            out(publicEventPayload($config));
+            break;
+
+        case 'create_checkout':
+            try {
+                out(createStripeCheckout($pdo, $config, $input), 201);
+            } catch (InvalidArgumentException $error) {
+                fail($error->getMessage(), 400);
+            } catch (DomainException $error) {
+                fail($error->getMessage(), 503);
+            } catch (Throwable $error) {
+                error_log('Stripe Checkout creation failed: ' . $error->getMessage());
+                fail('Ticket checkout is temporarily unavailable. No payment was taken.', 502);
+            }
+            break;
+
+        case 'checkout_status':
+            try {
+                out(checkoutStatus($pdo, trim((string)($_GET['session_id'] ?? ''))));
+            } catch (InvalidArgumentException $error) {
+                fail($error->getMessage(), 400);
+            } catch (OutOfBoundsException $error) {
+                fail($error->getMessage(), 404);
+            }
+            break;
+
+        case 'stripe_webhook':
+            $webhookSecret = trim((string)($config['stripe_webhook_secret'] ?? ''));
+            if ($webhookSecret === '') fail('Stripe webhook verification is not configured.', 503);
+            // Stripe-Signature is verified against the untouched raw request body.
+            $signatureHeader = (string)($_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '');
+            if (!stripeVerifyWebhookSignature($rawInput, $signatureHeader, $webhookSecret)) {
+                fail('Invalid Stripe-Signature.', 400);
+            }
+            $stripeEvent = json_decode($rawInput, true);
+            if (!is_array($stripeEvent)) fail('Invalid Stripe webhook payload.', 400);
+            processStripeWebhookEvent($pdo, $stripeEvent);
+            out(['received' => true]);
+            break;
+
         case 'discord_interactions':
             handleDiscordInteraction($pdo, $config, $rawInput, $input);
             break;

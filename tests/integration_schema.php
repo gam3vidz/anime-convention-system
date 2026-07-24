@@ -21,6 +21,7 @@ ensureSchema($pdo);
 ensureSchema($pdo);
 
 $expectedTables = [
+    'event_tickets',
     'guest_flights',
     'hotel_rooms',
     'incident_activity',
@@ -31,6 +32,8 @@ $expectedTables = [
     'shift_alert_rules',
     'shifts',
     'system_logs',
+    'ticket_order_items',
+    'ticket_orders',
     'time_clock_entries',
     'user_availability',
     'user_shifts',
@@ -88,4 +91,20 @@ if ((int)$pdo->query('SELECT COUNT(*) FROM vendor_hall_assignments')->fetchColum
     exit(1);
 }
 
-fwrite(STDOUT, "Fresh MariaDB schema integration test passed (17 tables, idempotent).\n");
+$ticketOrderColumns = $pdo->query('SHOW COLUMNS FROM ticket_orders')->fetchAll(PDO::FETCH_COLUMN);
+foreach (['idempotency_key', 'stripe_checkout_session_id', 'purchaser_email', 'payment_status', 'amount_total'] as $column) {
+    if (!in_array($column, $ticketOrderColumns, true)) {
+        fwrite(STDERR, "Missing ticket_orders.{$column}\n");
+        exit(1);
+    }
+}
+
+$eventTicketColumns = $pdo->query('SHOW COLUMNS FROM event_tickets')->fetchAll(PDO::FETCH_COLUMN);
+foreach (['order_id', 'order_item_id', 'sku', 'ticket_code', 'issued_at'] as $column) {
+    if (!in_array($column, $eventTicketColumns, true)) {
+        fwrite(STDERR, "Missing event_tickets.{$column}\n");
+        exit(1);
+    }
+}
+
+fwrite(STDOUT, "Fresh MariaDB schema integration test passed (20 tables, idempotent).\n");

@@ -22,14 +22,20 @@ RUNTIME_FILES = [
     "api/discord-callback.php",
     "api/discord-interactions.php",
     "api/schema.php",
+    "api/stripe.php",
     "api/uploads/.htaccess",
     "api/uploads/.gitkeep",
     "scripts/migrate.php",
 ]
 
+DOCUMENTATION_FILES = {
+    "docs/EVENTENY_INSPIRED_OVERHAUL.md": "EVENTENY_INSPIRED_OVERHAUL.md",
+}
+
 
 def build() -> Path:
-    missing = [name for name in RUNTIME_FILES if not (ROOT / name).is_file()]
+    source_files = [*RUNTIME_FILES, *DOCUMENTATION_FILES]
+    missing = [name for name in source_files if not (ROOT / name).is_file()]
     if missing:
         raise SystemExit(f"Missing runtime files: {', '.join(missing)}")
 
@@ -37,12 +43,14 @@ def build() -> Path:
     with ZipFile(ARCHIVE, "w", compression=ZIP_DEFLATED, compresslevel=9) as archive:
         for name in RUNTIME_FILES:
             archive.write(ROOT / name, arcname=name)
+        for source, archive_name in DOCUMENTATION_FILES.items():
+            archive.write(ROOT / source, arcname=archive_name)
 
     digest = hashlib.sha256(ARCHIVE.read_bytes()).hexdigest()
     manifest = {
         "archive": ARCHIVE.name,
         "sha256": digest,
-        "files": RUNTIME_FILES,
+        "files": [*RUNTIME_FILES, *DOCUMENTATION_FILES.values()],
     }
     (DIST / "release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Built {ARCHIVE} ({ARCHIVE.stat().st_size} bytes, sha256={digest})")

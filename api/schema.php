@@ -230,6 +230,53 @@ function ensureSchema(PDO $pdo): void {
         INDEX idx_status (status),
         INDEX idx_user_created (user_id, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ticket_orders (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        idempotency_key VARCHAR(128) NOT NULL,
+        request_fingerprint CHAR(64) NOT NULL,
+        purchaser_email VARCHAR(254) NOT NULL,
+        currency CHAR(3) NOT NULL,
+        amount_total BIGINT UNSIGNED NOT NULL,
+        payment_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        stripe_checkout_session_id VARCHAR(255) NULL,
+        stripe_checkout_url TEXT NULL,
+        stripe_payment_intent_id VARCHAR(255) NULL,
+        last_stripe_event_id VARCHAR(255) NULL,
+        paid_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_ticket_orders_idempotency (idempotency_key),
+        UNIQUE KEY uq_ticket_orders_stripe_session (stripe_checkout_session_id),
+        INDEX idx_ticket_orders_status (payment_status, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ticket_order_items (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL,
+        sku VARCHAR(64) NOT NULL,
+        ticket_name VARCHAR(160) NOT NULL,
+        unit_amount BIGINT UNSIGNED NOT NULL,
+        quantity SMALLINT UNSIGNED NOT NULL,
+        currency CHAR(3) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_ticket_order_items_sku (order_id, sku),
+        INDEX idx_ticket_order_items_order (order_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS event_tickets (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL,
+        order_item_id BIGINT UNSIGNED NOT NULL,
+        sku VARCHAR(64) NOT NULL,
+        ticket_code VARCHAR(32) NOT NULL,
+        ticket_status VARCHAR(20) NOT NULL DEFAULT 'issued',
+        issued_at DATETIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_event_tickets_code (ticket_code),
+        INDEX idx_event_tickets_order (order_id, id),
+        INDEX idx_event_tickets_item (order_item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TABLE IF NOT EXISTS incidents (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         incident_number VARCHAR(40) NOT NULL DEFAULT '',

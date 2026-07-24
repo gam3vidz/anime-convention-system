@@ -70,6 +70,11 @@ let selectedIncidentId = null;
 let selectedVolunteerProfileId = null;
 let mealWindows = loadMealWindows();
 let applicationFormHydratedUserId = null;
+let publicEventData = null;
+let activeScheduleDay = "All";
+let activeScheduleCategory = "All";
+let lastPublicFocus = null;
+const checkoutTokens = new Map();
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -77,6 +82,393 @@ const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").repla
 const isManagementUser = (user) => ["admin", "manager"].includes(user?.role) || ["Admin", "Coordinator"].includes(user?.rank);
 const isFullAdmin = (user) => user?.role === "admin" || user?.rank === "Admin";
 const needsApplication = (user) => !!user && !isManagementUser(user) && user.status !== "approved";
+
+async function loadPublicEvent() {
+  const response = await fetch(`${configuredApiBase}?action=public_event`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Convention details are temporarily unavailable.");
+  csrfToken = data.csrfToken || csrfToken;
+  publicEventData = data;
+  renderPublicEvent(data);
+  await handleCheckoutReturn();
+  return data;
+}
+
+function safePublicList(value) {
+  return Array.isArray(value) ? value.filter(item => item && typeof item === "object") : [];
+}
+
+function setPublicText(selector, value, fallback = "") {
+  const element = $(selector);
+  if (element) element.textContent = String(value || fallback);
+}
+
+function renderPublicEvent(data) {
+  const event = data?.event && typeof data.event === "object" ? data.event : {};
+  const eventName = event.name || "Delta H Anime & Manga Festival";
+  document.title = eventName;
+  $$("[data-event-name]").forEach(element => { element.textContent = eventName; });
+  $$("[data-event-short-name]").forEach(element => {
+    element.textContent = event.short_name || eventName;
+  });
+  setPublicText("#publicTagline", event.tagline, "Anime, manga, cosplay, games, and community.");
+  setPublicText("#publicDescription", event.description, "A fan-powered weekend for every kind of fandom.");
+  setPublicText("#publicDate", event.date_label, "Dates to be announced");
+  const venue = event.venue && typeof event.venue === "object" ? event.venue : {};
+  setPublicText("#publicVenue", [venue.name, venue.city].filter(Boolean).join(" · "), "Venue to be announced");
+  setPublicText("#venueName", venue.name, "Venue to be announced");
+  setPublicText("#venueAddress", [venue.address, venue.city].filter(Boolean).join(" · "));
+  setPublicText("#venueAccessibility", venue.accessibility, "Contact the organizer for accessibility details.");
+  setPublicText("#venueTransit", venue.transit, "Travel details will be published before the event.");
+
+  const announcements = Array.isArray(event.announcements) ? event.announcements.filter(Boolean) : [];
+  const announcement = $("#publicAnnouncement");
+  if (announcement) {
+    announcement.hidden = announcements.length === 0;
+    announcement.textContent = announcements[0] || "";
+  }
+
+  const highlights = safePublicList(event.highlights);
+  if ($("#publicHighlights")) {
+    $("#publicHighlights").innerHTML = highlights.map(item => `
+      <div><strong>${escapeHtml(item.value)}</strong><span>${escapeHtml(item.label)}</span></div>
+    `).join("");
+  }
+
+  renderScheduleFilters();
+  renderSchedule();
+  renderGuests(safePublicList(event.guests));
+  renderVendors();
+  renderPublicMap(safePublicList(event.map_zones));
+  renderTickets(Array.isArray(data.tickets) ? data.tickets : [], Boolean(data.paymentConfigured));
+  renderSponsors(safePublicList(event.sponsors));
+  renderFaq(safePublicList(event.faq));
+
+  const calls = event.calls_to_action && typeof event.calls_to_action === "object" ? event.calls_to_action : {};
+  setPublicText("#volunteerTitlePublic", calls.volunteer_title, "Help make the weekend legendary");
+  setPublicText("#volunteerCtaText", calls.volunteer_text, "Join the crew that keeps the convention moving.");
+  setPublicText("#vendorCtaTitle", calls.vendor_title, "Bring your work to the hall");
+  setPublicText("#vendorCtaText", calls.vendor_text, "Meet fans looking for their next favorite creator.");
+}
+
+function renderPublicEventError(message) {
+  setPublicText("#publicHeroTitle", "The convention site is regrouping");
+  setPublicText("#publicTagline", message, "Convention details are temporarily unavailable.");
+  const ticketGrid = $("#ticketGrid");
+  if (ticketGrid) {
+    ticketGrid.innerHTML = `<div class="public-empty-state">${escapeHtml(message)}</div>`;
+  }
+}
+
+function schedulePrograms() {
+  return safePublicList(publicEventData?.event?.schedule);
+}
+
+function renderScheduleFilters() {
+  const programs = schedulePrograms();
+  const days = ["All", ...new Set(programs.map(program => String(program.day || "")).filter(Boolean))];
+  const categories = ["All", ...new Set(programs.map(program => String(program.category || "")).filter(Boolean))];
+  const controls = $("#scheduleFilters");
+  if (!controls) return;
+  controls.innerHTML = `
+    <div class="schedule-filter-group" aria-label="Filter by day">
+      <span>Day</span>
+      ${days.map(day => `<button type="button" data-schedule-day="${escapeHtml(day)}" aria-pressed="${day === activeScheduleDay}">${escapeHtml(day)}</button>`).join("")}
+    </div>
+    <div class="schedule-filter-group" aria-label="Filter by category">
+      <span>Track</span>
+      ${categories.map(category => `<button type="button" data-schedule-category="${escapeHtml(category)}" aria-pressed="${category === activeScheduleCategory}">${escapeHtml(category)}</button>`).join("")}
+    </div>
+  `;
+}
+
+function renderSchedule() {
+  const filtered = schedulePrograms().filter(program =>
+    (activeScheduleDay === "All" || String(program.day) === activeScheduleDay)
+    && (activeScheduleCategory === "All" || String(program.category) === activeScheduleCategory)
+  );
+  setPublicText("#scheduleResultCount", `${filtered.length} program${filtered.length === 1 ? "" : "s"} in this preview`);
+  const grid = $("#scheduleGrid");
+  if (!grid) return;
+  grid.innerHTML = filtered.length ? filtered.map(program => `
+    <article class="program-card manga-panel">
+      <div class="program-meta"><span>${escapeHtml(program.day)}</span><time>${escapeHtml(program.time)}</time></div>
+      <span class="program-category">${escapeHtml(program.category)}</span>
+      <h3>${escapeHtml(program.title)}</h3>
+      <p>${escapeHtml(program.description)}</p>
+      <div class="program-location"><span aria-hidden="true">⌖</span>${escapeHtml(program.location)}</div>
+    </article>
+  `).join("") : `<div class="public-empty-state">No preview programs match these filters yet.</div>`;
+}
+
+function renderGuests(guests) {
+  const grid = $("#guestGrid");
+  if (!grid) return;
+  grid.innerHTML = guests.map((guest, index) => `
+    <article class="guest-card manga-panel">
+      <div class="guest-portrait guest-portrait-${(index % 3) + 1}" aria-hidden="true">
+        <span>${escapeHtml(guest.initials || String(guest.name || "?").slice(0, 2))}</span>
+      </div>
+      <div class="guest-copy">
+        <p>${escapeHtml(guest.role)}</p>
+        <h3>${escapeHtml(guest.name)}</h3>
+        <span>${escapeHtml(guest.bio)}</span>
+      </div>
+    </article>
+  `).join("");
+}
+
+function renderVendors() {
+  const vendors = safePublicList(publicEventData?.event?.vendors);
+  const query = String($("#vendorSearch")?.value || "").trim().toLowerCase();
+  const filtered = vendors.filter(vendor =>
+    [vendor.name, vendor.type, vendor.booth, vendor.description].some(value =>
+      String(value || "").toLowerCase().includes(query)
+    )
+  );
+  setPublicText("#vendorResultCount", `${filtered.length} maker${filtered.length === 1 ? "" : "s"} found`);
+  const grid = $("#vendorGrid");
+  if (!grid) return;
+  grid.innerHTML = filtered.length ? filtered.map(vendor => `
+    <article class="vendor-card">
+      <div class="vendor-card-top">
+        <span>${escapeHtml(vendor.type)}</span>
+        <strong>${escapeHtml(vendor.booth)}</strong>
+      </div>
+      <h3>${escapeHtml(vendor.name)}</h3>
+      <p>${escapeHtml(vendor.description)}</p>
+    </article>
+  `).join("") : `<div class="public-empty-state">No directory entries match “${escapeHtml(query)}”.</div>`;
+}
+
+function renderPublicMap(zones) {
+  const map = $("#publicMap");
+  if (!map) return;
+  map.innerHTML = `
+    <div class="map-corridor map-corridor-horizontal" aria-hidden="true"></div>
+    <div class="map-corridor map-corridor-vertical" aria-hidden="true"></div>
+    ${zones.map((zone, index) => `
+      <article class="map-zone map-zone-${(index % 5) + 1}">
+        <strong>${escapeHtml(zone.code)}</strong>
+        <div><h3>${escapeHtml(zone.name)}</h3><p>${escapeHtml(zone.detail)}</p></div>
+      </article>
+    `).join("")}
+  `;
+}
+
+function renderSponsors(sponsors) {
+  const grid = $("#sponsorGrid");
+  if (!grid) return;
+  grid.innerHTML = sponsors.map(sponsor => `
+    <article>
+      <div><strong>${escapeHtml(sponsor.name)}</strong><span>${escapeHtml(sponsor.tier)}</span></div>
+    </article>
+  `).join("");
+}
+
+function renderFaq(items) {
+  const list = $("#faqList");
+  if (!list) return;
+  list.innerHTML = items.map(item => `
+    <details>
+      <summary>${escapeHtml(item.question)}</summary>
+      <p>${escapeHtml(item.answer)}</p>
+    </details>
+  `).join("");
+}
+
+function formatTicketPrice(priceCents, currency) {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: String(currency || "usd").toUpperCase(),
+      maximumFractionDigits: 2
+    }).format(Number(priceCents || 0) / 100);
+  } catch {
+    return `$${(Number(priceCents || 0) / 100).toFixed(2)}`;
+  }
+}
+
+function renderTickets(tickets, paymentConfigured) {
+  const grid = $("#ticketGrid");
+  if (!grid) return;
+  if (!tickets.length) {
+    grid.innerHTML = `<div class="public-empty-state">The ticket catalog has not been published yet.</div>`;
+    return;
+  }
+  grid.innerHTML = tickets.map((ticket, index) => {
+    const sku = String(ticket.sku || "");
+    const disabled = !paymentConfigured;
+    return `
+      <article class="ticket-card manga-panel ${index === 1 ? "ticket-card-featured" : ""}">
+        ${index === 1 ? '<span class="ticket-ribbon">Most popular</span>' : ""}
+        <p class="ticket-level">Level ${String(index + 1).padStart(2, "0")}</p>
+        <h3>${escapeHtml(ticket.name)}</h3>
+        <p class="ticket-price">${escapeHtml(formatTicketPrice(ticket.price_cents, ticket.currency))}</p>
+        <p class="ticket-description">${escapeHtml(ticket.description)}</p>
+        <form class="ticket-checkout-form" data-ticket-sku="${escapeHtml(sku)}">
+          <label>Email for this order
+            <input name="email" type="email" maxlength="254" autocomplete="email" placeholder="fan@example.com" required ${disabled ? "disabled" : ""} />
+          </label>
+          <label>Quantity
+            <select name="quantity" ${disabled ? "disabled" : ""}>
+              ${Array.from({ length: Number(ticket.max_quantity || 10) }, (_, quantity) =>
+                `<option value="${quantity + 1}">${quantity + 1}</option>`
+              ).join("")}
+            </select>
+          </label>
+          <button class="public-button public-button-primary" type="submit" ${disabled ? "disabled" : ""}>
+            ${disabled ? "Sales not configured" : "Continue to secure checkout"}
+          </button>
+          <p class="ticket-form-message" aria-live="polite">${disabled ? "Ticket sales are not configured. Event details remain available." : "You’ll finish payment on Stripe’s hosted page."}</p>
+        </form>
+      </article>
+    `;
+  }).join("");
+}
+
+async function submitTicketCheckout(form) {
+  const message = form.querySelector(".ticket-form-message");
+  const submit = form.querySelector('button[type="submit"]');
+  const sku = String(form.dataset.ticketSku || "");
+  const email = String(form.elements.email?.value || "").trim();
+  const quantity = Number(form.elements.quantity?.value || 1);
+  if (!form.reportValidity()) return;
+
+  const checkoutKey = `${sku}:${email.toLowerCase()}:${quantity}`;
+  let idempotencyKey = checkoutTokens.get(checkoutKey);
+  if (!idempotencyKey) {
+    idempotencyKey = crypto.randomUUID();
+    checkoutTokens.set(checkoutKey, idempotencyKey);
+  }
+  submit.disabled = true;
+  message.textContent = "Opening secure Stripe Checkout…";
+  try {
+    const data = await apiRequest("create_checkout", { sku, quantity, email, idempotencyKey });
+    if (!data.url) throw new Error("Stripe Checkout did not return a redirect.");
+    window.location.assign(data.url);
+  } catch (error) {
+    submit.disabled = false;
+    message.textContent = error.message;
+  }
+}
+
+function showCheckoutStatus(state, title, message) {
+  const panel = $("#checkoutStatus");
+  if (!panel) return;
+  panel.hidden = false;
+  panel.dataset.state = state;
+  setPublicText("#checkoutStatusTitle", title);
+  setPublicText("#checkoutStatusMessage", message);
+  setPublicText("#checkoutStatusIcon", state === "paid" ? "✓" : state === "failed" ? "!" : "◎");
+}
+
+function renderIssuedTickets(tickets) {
+  const container = $("#issuedTickets");
+  if (!container) return;
+  container.innerHTML = tickets.map(ticket => `
+    <article class="issued-ticket">
+      <span>${escapeHtml(ticket.name)}</span>
+      <strong>${escapeHtml(ticket.code)}</strong>
+      <small>Keep this code private and bring it to check-in.</small>
+    </article>
+  `).join("");
+}
+
+async function pollCheckoutStatus(sessionId) {
+  showCheckoutStatus("pending", "Payment confirmation pending", "Stripe returned you safely. Waiting for the verified payment webhook…");
+  for (let attempt = 0; attempt < 12; attempt++) {
+    try {
+      const response = await fetch(`${configuredApiBase}?action=checkout_status&session_id=${encodeURIComponent(sessionId)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not check this order.");
+      if (data.status === "paid") {
+        showCheckoutStatus("paid", "You’re officially on the guest list!", "Payment was verified and your ticket code is ready.");
+        renderIssuedTickets(Array.isArray(data.tickets) ? data.tickets : []);
+        return;
+      }
+      if (data.status === "failed") {
+        showCheckoutStatus("failed", "Payment was not completed", "No ticket was issued. Please return to the ticket choices when you’re ready.");
+        return;
+      }
+    } catch (error) {
+      if (attempt === 11) {
+        showCheckoutStatus("pending", "Confirmation is taking longer than expected", "Your order is still safe. Keep this page URL and check again shortly.");
+        return;
+      }
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 2000));
+  }
+  showCheckoutStatus("pending", "Payment confirmation is still pending", "Keep this page URL and check again soon. Tickets appear only after Stripe confirms payment.");
+}
+
+async function handleCheckoutReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const checkout = params.get("checkout");
+  if (checkout === "cancel") {
+    showCheckoutStatus("failed", "Checkout canceled", "No payment was recorded. Your ticket choices are still here when you’re ready.");
+    $("#checkoutStatus")?.scrollIntoView({ block: "center" });
+    return;
+  }
+  if (checkout === "success") {
+    const sessionId = String(params.get("session_id") || "");
+    if (!/^cs_(?:test|live)_[A-Za-z0-9_]{20,255}$/.test(sessionId)) {
+      showCheckoutStatus("failed", "We could not identify that checkout", "Return to the ticket choices and start a new secure checkout.");
+      return;
+    }
+    $("#checkoutStatus")?.scrollIntoView({ block: "center" });
+    await pollCheckoutStatus(sessionId);
+  }
+}
+
+function setPublicMenu(open) {
+  const menu = $("#publicNavLinks");
+  const toggle = $("#publicMenuToggle");
+  if (menu) menu.classList.toggle("is-open", open);
+  if (toggle) toggle.setAttribute("aria-expanded", String(open));
+}
+
+function openStaffLogin(trigger = document.activeElement) {
+  if (currentUser) return;
+  setPublicMenu(false);
+  lastPublicFocus = trigger instanceof HTMLElement ? trigger : null;
+  document.body.classList.add("staff-login-open");
+  const drawer = $("#authView");
+  if (drawer) drawer.hidden = false;
+  window.setTimeout(() => $("#staffLoginClose")?.focus(), 0);
+}
+
+function closeStaffLogin() {
+  document.body.classList.remove("staff-login-open");
+  const drawer = $("#authView");
+  if (drawer) drawer.hidden = true;
+  if (lastPublicFocus?.isConnected) lastPublicFocus.focus();
+}
+
+function trapStaffLoginFocus(event) {
+  if (!document.body.classList.contains("staff-login-open")) {
+    if (event.key === "Escape") setPublicMenu(false);
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeStaffLogin();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = $$("#authView button, #authView a[href], #authView input, #authView select, #authView textarea")
+    .filter(element => !element.disabled && element.getClientRects().length);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 async function init() {
   bindEvents();
@@ -86,6 +478,10 @@ async function init() {
   populateDepartmentSelects();
   populateMealWindowControls();
 
+  const publicEventPromise = loadPublicEvent().catch(error => {
+    console.error("Public event load failed", error);
+    renderPublicEventError(error.message);
+  });
   try {
     const res = await fetch(`${configuredApiBase}?action=session`);
     if (!res.ok) throw new Error("API Connection Failed");
@@ -95,6 +491,7 @@ async function init() {
     console.error("Init fail", e);
     updateAuthView();
   }
+  await publicEventPromise;
 }
 
 function applyState(data) {
@@ -129,6 +526,7 @@ function showDiscordAuthMessage() {
   if ($("#loginMessage") && error) $("#loginMessage").textContent = error;
   if ($("#loginMessage") && ok === "ok") $("#loginMessage").textContent = "Discord login complete.";
   if ($("#loginMessage") && application === "needed") $("#loginMessage").textContent = "Discord linked. Finish the volunteer application.";
+  if (error) openStaffLogin();
   if (error || ok || application) {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
@@ -161,6 +559,39 @@ async function apiUpload(action, formData) {
 
 function bindEvents() {
   const on = (s, e, h) => { const el = $(s); if (el) el.addEventListener(e, h); };
+
+  on("#publicMenuToggle", "click", () => {
+    setPublicMenu($("#publicMenuToggle")?.getAttribute("aria-expanded") !== "true");
+  });
+  on("#publicNavLinks", "click", event => {
+    if (event.target.closest("a")) setPublicMenu(false);
+  });
+  on("#staffLogin", "click", event => openStaffLogin(event.currentTarget));
+  $$("[data-open-staff-login]").forEach(button => {
+    button.addEventListener("click", event => openStaffLogin(event.currentTarget));
+  });
+  on("#staffLoginClose", "click", closeStaffLogin);
+  on("#authView", "click", event => {
+    if (event.target === $("#authView")) closeStaffLogin();
+  });
+  document.addEventListener("keydown", trapStaffLoginFocus);
+  on("#scheduleFilters", "click", event => {
+    const dayButton = event.target.closest("[data-schedule-day]");
+    const categoryButton = event.target.closest("[data-schedule-category]");
+    if (dayButton) activeScheduleDay = dayButton.dataset.scheduleDay;
+    if (categoryButton) activeScheduleCategory = categoryButton.dataset.scheduleCategory;
+    if (dayButton || categoryButton) {
+      renderScheduleFilters();
+      renderSchedule();
+    }
+  });
+  on("#vendorSearch", "input", renderVendors);
+  on("#ticketGrid", "submit", event => {
+    const form = event.target.closest(".ticket-checkout-form");
+    if (!form) return;
+    event.preventDefault();
+    submitTicketCheckout(form);
+  });
 
   on("#loginForm", "submit", async (e) => {
     e.preventDefault();
@@ -421,7 +852,14 @@ const SIDEBAR_NAV_ITEMS = [
 function updateAuthView() {
   const isSignedIn = !!currentUser;
 
-  if ($("#authView")) $("#authView").hidden = isSignedIn;
+  if (isSignedIn) document.body.classList.remove("staff-login-open");
+  const skipLink = $(".skip-link");
+  if (skipLink) {
+    skipLink.href = isSignedIn ? "#mainContent" : "#publicMain";
+    skipLink.textContent = isSignedIn ? "Skip to operations content" : "Skip to convention content";
+  }
+  if ($("#publicSite")) $("#publicSite").hidden = isSignedIn;
+  if ($("#authView")) $("#authView").hidden = isSignedIn || !document.body.classList.contains("staff-login-open");
   if ($("#appShell")) $("#appShell").hidden = !isSignedIn;
 
   document.body.classList.toggle("logged-in", isSignedIn);
@@ -3023,33 +3461,10 @@ function exportRowsCoordinatorRollup(dayFilter) {
 }
 
 function downloadShiftTemplate() {
-  if (!window.XLSX) {
-    const link = document.createElement("a");
-    link.href = "delta-h-shift-import-template.xlsx";
-    link.download = "delta-h-shift-import-template.xlsx";
-    link.click();
-    return;
-  }
-
-  const rows = [
-    ["Department", "Title", "Day", "Time", "Hours", "Capacity", "Note"],
-    ["Con Ops", "Morning coverage", "Friday", "8:00 AM - 12:00 PM", 4, 3, "Morning operations"],
-    ["Con Suite", "Suite coverage", "Friday", "12:00 PM - 4:00 PM", 4, 2, "Con suite support"],
-    ["Registration/Info Desk", "Lunch desk coverage", "Saturday", "11:00 AM - 3:00 PM", 4, 2, "Guest-facing desk"]
-  ];
-  const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet["!cols"] = [
-    { wch: 24 },
-    { wch: 28 },
-    { wch: 14 },
-    { wch: 22 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 30 }
-  ];
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Shifts");
-  XLSX.writeFile(workbook, "delta-h-shift-import-template.xlsx");
+  const link = document.createElement("a");
+  link.href = "delta-h-shift-import-template.xlsx";
+  link.download = "delta-h-shift-import-template.xlsx";
+  link.click();
 }
 
 async function importShiftWorkbook() {
@@ -3059,11 +3474,6 @@ async function importShiftWorkbook() {
     if (message) message.textContent = "Choose an Excel file first.";
     return;
   }
-  if (!window.XLSX) {
-    if (message) message.textContent = "Excel importer is still loading. Refresh and try again.";
-    return;
-  }
-
   try {
     const parsed = await parseShiftWorkbook(file);
     const rows = parsed.rows || [];
@@ -3089,33 +3499,121 @@ async function importShiftWorkbook() {
   }
 }
 
-function parseShiftWorkbook(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const workbook = XLSX.read(reader.result, { type: "array" });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        if (!worksheet) throw new Error("Workbook does not have a first sheet.");
-        const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-        const rows = [];
-        const errors = [];
-        rawRows.forEach((row, index) => {
-          try {
-            const clean = normalizeImportedShift(row, index + 2);
-            if (clean) rows.push(clean);
-          } catch(err) {
-            errors.push(`Row ${index + 2}: ${err.message}`);
-          }
-        });
-        resolve({ rows, errors });
-      } catch(err) {
-        reject(err);
+async function unzipWorkbookEntries(buffer, requestedNames) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  let endOffset = -1;
+  const minimumOffset = Math.max(0, bytes.length - 65557);
+  for (let offset = bytes.length - 22; offset >= minimumOffset; offset--) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      endOffset = offset;
+      break;
+    }
+  }
+  if (endOffset < 0) throw new Error("This file is not a readable XLSX workbook.");
+
+  const entryCount = view.getUint16(endOffset + 10, true);
+  let centralOffset = view.getUint32(endOffset + 16, true);
+  const decoder = new TextDecoder();
+  const requested = new Set(requestedNames);
+  const entries = new Map();
+  for (let index = 0; index < entryCount; index++) {
+    if (view.getUint32(centralOffset, true) !== 0x02014b50) {
+      throw new Error("The XLSX directory is damaged.");
+    }
+    const method = view.getUint16(centralOffset + 10, true);
+    const compressedSize = view.getUint32(centralOffset + 20, true);
+    const fileNameLength = view.getUint16(centralOffset + 28, true);
+    const extraLength = view.getUint16(centralOffset + 30, true);
+    const commentLength = view.getUint16(centralOffset + 32, true);
+    const localOffset = view.getUint32(centralOffset + 42, true);
+    const name = decoder.decode(bytes.slice(centralOffset + 46, centralOffset + 46 + fileNameLength));
+
+    if (requested.has(name)) {
+      if (view.getUint32(localOffset, true) !== 0x04034b50) {
+        throw new Error("The XLSX entry is damaged.");
       }
-    };
-    reader.onerror = () => reject(new Error("Could not read that Excel file."));
-    reader.readAsArrayBuffer(file);
+      const localNameLength = view.getUint16(localOffset + 26, true);
+      const localExtraLength = view.getUint16(localOffset + 28, true);
+      const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+      const compressed = bytes.slice(dataOffset, dataOffset + compressedSize);
+      let content;
+      if (method === 0) {
+        content = compressed;
+      } else if (method === 8 && typeof DecompressionStream === "function") {
+        const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        content = new Uint8Array(await new Response(stream).arrayBuffer());
+      } else {
+        throw new Error("This browser cannot decompress the selected XLSX workbook.");
+      }
+      entries.set(name, decoder.decode(content));
+    }
+    centralOffset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function spreadsheetColumnIndex(reference) {
+  const letters = String(reference || "").match(/^[A-Z]+/i)?.[0]?.toUpperCase() || "";
+  return Array.from(letters).reduce((index, letter) => (index * 26) + letter.charCodeAt(0) - 64, 0) - 1;
+}
+
+function xlsxSheetRows(sheetXml, sharedXml = "") {
+  const parser = new DOMParser();
+  const sheet = parser.parseFromString(sheetXml, "application/xml");
+  if (sheet.querySelector("parsererror")) throw new Error("The first worksheet XML is invalid.");
+  const shared = [];
+  if (sharedXml) {
+    const sharedDocument = parser.parseFromString(sharedXml, "application/xml");
+    Array.from(sharedDocument.getElementsByTagName("si")).forEach(item => {
+      shared.push(Array.from(item.getElementsByTagName("t")).map(text => text.textContent || "").join(""));
+    });
+  }
+
+  return Array.from(sheet.getElementsByTagName("row")).map(row => {
+    const values = [];
+    Array.from(row.getElementsByTagName("c")).forEach(cell => {
+      const column = spreadsheetColumnIndex(cell.getAttribute("r"));
+      const type = cell.getAttribute("t") || "";
+      let value = "";
+      if (type === "inlineStr") {
+        value = Array.from(cell.getElementsByTagName("t")).map(text => text.textContent || "").join("");
+      } else {
+        value = cell.getElementsByTagName("v")[0]?.textContent || "";
+        if (type === "s") value = shared[Number(value)] ?? "";
+        if (type === "b") value = value === "1" ? "TRUE" : "FALSE";
+      }
+      if (column >= 0) values[column] = value;
+    });
+    return values;
   });
+}
+
+async function parseShiftWorkbook(file) {
+  if (!String(file.name || "").toLowerCase().endsWith(".xlsx")) {
+    throw new Error("Choose the provided .xlsx shift template or another modern XLSX workbook.");
+  }
+  const entries = await unzipWorkbookEntries(await file.arrayBuffer(), [
+    "xl/worksheets/sheet1.xml",
+    "xl/sharedStrings.xml"
+  ]);
+  const sheetXml = entries.get("xl/worksheets/sheet1.xml");
+  if (!sheetXml) throw new Error("Workbook does not have a readable first sheet.");
+  const matrix = xlsxSheetRows(sheetXml, entries.get("xl/sharedStrings.xml") || "");
+  const headers = (matrix.shift() || []).map(value => String(value || "").trim());
+  if (!headers.some(Boolean)) throw new Error("The first worksheet does not contain column headers.");
+  const rawRows = matrix.map(row => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+  const rows = [];
+  const errors = [];
+  rawRows.forEach((row, index) => {
+    try {
+      const clean = normalizeImportedShift(row, index + 2);
+      if (clean) rows.push(clean);
+    } catch(err) {
+      errors.push(`Row ${index + 2}: ${err.message}`);
+    }
+  });
+  return { rows, errors };
 }
 
 function normalizeImportedShift(row, rowNumber = 0) {

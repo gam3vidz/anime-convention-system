@@ -45,6 +45,9 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check core.js
 
+      - name: Run Stripe unit checks
+        run: php tests/stripe_unit.php
+
       - name: Run security and release tests
         run: python3 -m unittest discover -s tests -v
 

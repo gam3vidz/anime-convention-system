@@ -3,12 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Delta H Scheduling System</title>
+    <meta name="description" content="Anime, manga, cosplay, games, artists, and community at Delta H." />
+    <title>Delta H Anime &amp; Manga Festival</title>
     <link rel="icon" href="data:,">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=46" />
+    <!-- Cache series advanced from styles.css?v=46 and core.js?v=46 for the public-platform release. -->
+    <link rel="stylesheet" href="styles.css?v=47" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -39,10 +38,13 @@
       }
 
       /* Lockdown styles to prevent UI flashing before JS loads */
-      #authView, #appShell {
+      #publicSite, #authView, #appShell {
         display: none !important;
       }
-      body:not(.logged-in) #authView {
+      body:not(.logged-in) #publicSite {
+        display: block !important;
+      }
+      body.staff-login-open:not(.logged-in) #authView {
         display: flex !important;
       }
       body.logged-in #appShell {
@@ -51,11 +53,193 @@
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#publicMain">Skip to convention content</a>
+
+    <!-- Public attendee website. Content is hydrated from ?action=public_event. -->
+    <div id="publicSite" class="public-site">
+      <header class="public-header">
+        <nav id="publicNav" class="public-nav" aria-label="Convention navigation">
+          <a class="public-brand" href="#home" aria-label="Convention home">
+            <span class="public-brand-mark" aria-hidden="true">ΔH</span>
+            <span data-event-short-name>Delta H</span>
+          </a>
+          <button id="publicMenuToggle" class="public-menu-toggle" type="button" aria-expanded="false" aria-controls="publicNavLinks">Explore</button>
+          <div id="publicNavLinks" class="public-nav-links">
+            <a href="#schedule">Schedule</a>
+            <a href="#guests">Guests</a>
+            <a href="#vendors">Vendors</a>
+            <a href="#venue">Map</a>
+            <a class="public-nav-ticket" href="#tickets">Tickets</a>
+            <button id="staffLogin" class="public-staff-login" type="button" aria-haspopup="dialog" aria-controls="authView">Crew login</button>
+          </div>
+        </nav>
+      </header>
+
+      <main id="publicMain">
+        <section id="home" class="public-hero" aria-labelledby="publicHeroTitle">
+          <div class="hero-speed-lines" aria-hidden="true"></div>
+          <div class="public-section hero-grid">
+            <div class="hero-copy">
+              <p class="public-kicker">Anime • Manga • Cosplay • Games</p>
+              <h1 id="publicHeroTitle" data-event-name>Loading the next adventure…</h1>
+              <p id="publicTagline" class="hero-tagline">Gather your party. The weekend starts here.</p>
+              <p id="publicDescription" class="hero-description">A fan-powered weekend for every kind of fandom.</p>
+              <div class="hero-actions">
+                <a class="public-button public-button-primary" href="#tickets">Choose your pass</a>
+                <a class="public-button public-button-ghost" href="#schedule">Explore the schedule</a>
+              </div>
+              <p id="publicAnnouncement" class="public-announcement" hidden></p>
+            </div>
+            <aside class="manga-panel hero-event-card" aria-label="Event details">
+              <span class="manga-burst" aria-hidden="true">NEW ARC!</span>
+              <p class="event-card-label">Save the date</p>
+              <p id="publicDate" class="event-card-date">Dates coming soon</p>
+              <p id="publicVenue" class="event-card-venue">Venue details coming soon</p>
+              <div id="publicHighlights" class="hero-facts" aria-label="Convention highlights"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="schedule" class="public-block public-section" aria-labelledby="scheduleTitle">
+          <div class="public-heading-row">
+            <div>
+              <p class="public-kicker">Plan your quest</p>
+              <h2 id="scheduleTitle">Three days. Your perfect route.</h2>
+            </div>
+            <p>Filter the preview by day or fandom, then build a weekend that feels made for you.</p>
+          </div>
+          <div id="scheduleFilters" class="schedule-filters" aria-label="Filter convention schedule"></div>
+          <p id="scheduleResultCount" class="filter-result-count" aria-live="polite"></p>
+          <div id="scheduleGrid" class="program-grid"></div>
+        </section>
+
+        <section id="guests" class="public-block public-block-ink" aria-labelledby="guestsTitle">
+          <div class="public-section">
+            <div class="public-heading-row">
+              <div>
+                <p class="public-kicker">Featured creators</p>
+                <h2 id="guestsTitle">Meet the voices and visionaries</h2>
+              </div>
+              <p>Panels, signings, craft sessions, and the stories behind the work.</p>
+            </div>
+            <div id="guestGrid" class="guest-grid"></div>
+          </div>
+        </section>
+
+        <section id="vendors" class="public-block public-section" aria-labelledby="vendorsTitle">
+          <div class="public-heading-row">
+            <div>
+              <p class="public-kicker">Artist alley + marketplace</p>
+              <h2 id="vendorsTitle">Find your next favorite thing</h2>
+            </div>
+            <p>Small-press manga, original art, collectibles, fashion, treats, and handmade treasures.</p>
+          </div>
+          <div class="vendor-search-wrap">
+            <label for="vendorSearch">Search the hall</label>
+            <input id="vendorSearch" type="search" placeholder="Try art, manga, collectibles…" autocomplete="off" />
+          </div>
+          <p id="vendorResultCount" class="filter-result-count" aria-live="polite"></p>
+          <div id="vendorGrid" class="vendor-grid"></div>
+        </section>
+
+        <section id="venue" class="public-block public-block-soft" aria-labelledby="venueTitle">
+          <div class="public-section">
+            <div class="public-heading-row">
+              <div>
+                <p class="public-kicker">Know before you go</p>
+                <h2 id="venueTitle">Your convention basecamp</h2>
+              </div>
+              <div>
+                <p id="venueName" class="venue-name">Venue details loading…</p>
+                <p id="venueAddress"></p>
+              </div>
+            </div>
+            <div class="venue-layout">
+              <div id="publicMap" class="manga-panel public-map" aria-label="Convention hall map"></div>
+              <div class="venue-notes">
+                <article>
+                  <span aria-hidden="true">♿</span>
+                  <div><h3>Accessibility</h3><p id="venueAccessibility"></p></div>
+                </article>
+                <article>
+                  <span aria-hidden="true">↗</span>
+                  <div><h3>Getting there</h3><p id="venueTransit"></p></div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tickets" class="public-block public-section" aria-labelledby="ticketsTitle">
+          <div class="public-heading-row">
+            <div>
+              <p class="public-kicker">Pick your power-up</p>
+              <h2 id="ticketsTitle">Passes for every kind of weekend</h2>
+            </div>
+            <p>Checkout is hosted securely by Stripe. This site never handles card details.</p>
+          </div>
+          <div id="ticketGrid" class="ticket-grid" aria-live="polite"></div>
+          <section id="checkoutStatus" class="checkout-status" aria-live="polite" aria-atomic="true" hidden>
+            <div id="checkoutStatusIcon" class="checkout-status-icon" aria-hidden="true">◎</div>
+            <div>
+              <h3 id="checkoutStatusTitle">Checking your order…</h3>
+              <p id="checkoutStatusMessage">Please keep this page open while payment confirmation arrives.</p>
+              <div id="issuedTickets" class="issued-ticket-list"></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="volunteer" class="public-block public-cta-block" aria-labelledby="volunteerTitlePublic">
+          <div class="public-section public-cta-grid">
+            <article class="manga-panel public-cta-card">
+              <p class="public-kicker">Join the crew</p>
+              <h2 id="volunteerTitlePublic">Help make the weekend legendary</h2>
+              <p id="volunteerCtaText">Welcome fans, support programs, and keep the adventure moving.</p>
+              <button class="public-button public-button-dark" type="button" data-open-staff-login>Volunteer portal</button>
+            </article>
+            <article class="manga-panel public-cta-card public-cta-card-alt">
+              <p class="public-kicker">Creators + shops</p>
+              <h2 id="vendorCtaTitle">Bring your work to the hall</h2>
+              <p id="vendorCtaText">Application tools are part of the next platform chapter.</p>
+              <a class="public-button public-button-ghost" href="#vendors">Explore the directory</a>
+            </article>
+          </div>
+        </section>
+
+        <section id="sponsors" class="public-block public-section" aria-labelledby="sponsorsTitle">
+          <div class="public-heading-row sponsor-heading">
+            <div><p class="public-kicker">Powered by community</p><h2 id="sponsorsTitle">Convention partners</h2></div>
+          </div>
+          <div id="sponsorGrid" class="sponsor-grid"></div>
+        </section>
+
+        <section id="faq" class="public-block public-block-ink" aria-labelledby="faqTitle">
+          <div class="public-section faq-layout">
+            <div>
+              <p class="public-kicker">Field guide</p>
+              <h2 id="faqTitle">Questions before your quest?</h2>
+              <p>Open a topic for the practical details. Final organizer policies always take priority.</p>
+            </div>
+            <div id="faqList" class="faq-list"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="public-footer">
+        <div class="public-section">
+          <a class="public-brand" href="#home"><span class="public-brand-mark" aria-hidden="true">ΔH</span><span data-event-short-name>Delta H</span></a>
+          <p><span data-event-name>Delta H</span> · A fan-powered anime and manga weekend.</p>
+          <button class="public-footer-login" type="button" data-open-staff-login>Staff &amp; volunteer login</button>
+        </div>
+      </footer>
+    </div>
+
     <!-- ════════════════════════════════════════════════
-         LOGIN / LANDING SCREEN  (exact Pages login card)
+         STAFF LOGIN DRAWER  (preserves exact Pages login card)
          ════════════════════════════════════════════════ -->
-    <section id="authView" class="login-screen" aria-labelledby="authTitle">
+    <section id="authView" class="login-screen" aria-labelledby="authTitle" aria-modal="true" role="dialog" hidden>
       <div class="login-bg-grid" aria-hidden="true"></div>
+      <button id="staffLoginClose" class="staff-login-close" type="button" aria-label="Close staff login">×</button>
       <div class="login-card">
         <div class="login-logo">
           <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
@@ -784,7 +968,7 @@
                 <button id="downloadShiftTemplateBtn" class="quiet-button" type="button">Download XLSX template</button>
               </div>
               <label>Shift workbook
-                <input id="shiftImportFile" type="file" accept=".xlsx,.xls" />
+                <input id="shiftImportFile" type="file" accept=".xlsx" />
               </label>
               <button id="importShiftsBtn" class="primary-button" type="button">Import shifts</button>
             </div>
@@ -1141,7 +1325,6 @@
       </div>
     </dialog>
 
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="core.js?v=46"></script>
+    <script src="core.js?v=47"></script>
   </body>
 </html>
