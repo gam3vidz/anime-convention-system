@@ -1,4 +1,4 @@
-name: Validate repository
+name: Validate and package
 
 on:
   push:
@@ -8,19 +8,63 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: delta_h_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
-      - name: Check out repository
+      - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
         with:
-          python-version: "3.12"
+          php-version: '8.2'
+          extensions: pdo_mysql
+          coverage: none
 
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Validate repository foundation
-        run: python scripts/validate_repository.py
+      - name: Lint PHP
+        run: find . -type f -name '*.php' -print0 | sort -z | xargs -0 -n1 php -l
+
+      - name: Check JavaScript syntax
+        run: node --check core.js
+
+      - name: Run security and release tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Verify fresh MariaDB schema
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: delta_h_test
+          TEST_DB_USER: root
+          TEST_DB_PASSWORD: root
+        run: php tests/integration_schema.php
+
+      - name: Build allowlisted release
+        run: python3 scripts/build-release.py
+
+      - name: Upload staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-h-release
+          path: |
+            dist/delta-h-release.zip
+            dist/release-manifest.json
+          if-no-files-found: error
