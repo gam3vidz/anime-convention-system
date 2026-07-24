@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Con Weekend — Delta H Volunteer Dashboard (sample)</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;}
+  :root{
+    --bg-0:#0e1020; --bg-1:#171a2e; --bg-2:#1f2340; --bg-3:#282d4f;
+    --ink:#12142a;
+    --surface:#191d33; --surface-2:#212642; --border:#2c3358; --border-soft:#3a4270;
+    --t1:#eef0fb; --t2:#a9b0d4; --t3:#7a82ab;
+    --brand:#7c6bff; --brand2:#b06bff; --pink:#ff6bb0; --mint:#3ddc97; --amber:#ffc24b; --sky:#5fb8ff;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;font-family:var(--sans);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(900px 500px at 50% -8%,rgba(124,107,255,.28),transparent 62%),
+      radial-gradient(700px 500px at 90% 10%,rgba(255,107,176,.14),transparent 60%),
+      var(--bg-0);}
+  a{color:inherit;}
+  button{font-family:inherit;color:inherit;cursor:pointer;}
+  .skip-link{position:absolute;left:12px;top:-60px;z-index:200;background:var(--brand);color:#fff;
+    padding:12px 18px;border-radius:10px;font-weight:700;text-decoration:none;transition:top .18s;}
+  .skip-link:focus{top:12px;}
+  :focus-visible{outline:3px solid #cbb9ff;outline-offset:3px;border-radius:10px;}
+
+  .phone{max-width:460px;margin:0 auto;min-height:100vh;padding:0 16px calc(96px + env(safe-area-inset-bottom));
+    position:relative;}
+
+  .sample-pill{display:block;text-align:center;margin:12px auto 0;max-width:max-content;
+    padding:6px 14px;border-radius:999px;background:rgba(255,194,75,.14);border:1px solid rgba(255,194,75,.4);
+    color:var(--amber);font-size:12px;font-weight:700;letter-spacing:.02em;}
+
+  /* Top bar */
+  .top{display:flex;align-items:center;gap:12px;padding:16px 4px 8px;}
+  .menu-btn{width:44px;height:44px;border-radius:13px;background:var(--surface);border:1px solid var(--border);
+    display:grid;place-items:center;flex:none;}
+  .menu-btn span{width:18px;height:2px;background:var(--t1);border-radius:2px;box-shadow:0 -5px 0 var(--t1),0 5px 0 var(--t1);}
+  .who{flex:1;min-width:0;}
+  .who small{color:var(--t3);font-size:12px;}
+  .who b{display:block;font-size:17px;letter-spacing:-.01em;}
+  .avatar{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:800;
+    color:#fff;background:linear-gradient(135deg,var(--brand),var(--pink));border:2px solid rgba(255,255,255,.15);}
+
+  .hero-h{margin:14px 4px 2px;font-size:26px;font-weight:800;letter-spacing:-.02em;}
+  .hero-sub{margin:0 4px 14px;color:var(--t2);font-size:14px;}
+  .hero-sub b{color:var(--t1);}
+
+  /* Progress ring band */
+  .prog-band{display:flex;align-items:center;gap:16px;padding:16px;border-radius:20px;
+    background:linear-gradient(135deg,var(--surface-2),var(--surface));border:1px solid var(--border);margin-bottom:16px;}
+  .ring{--pct:37.5;width:74px;height:74px;border-radius:50%;flex:none;display:grid;place-items:center;
+    background:conic-gradient(var(--mint) calc(var(--pct)*1%),var(--bg-3) 0);}
+  .ring::after{content:"";position:absolute;}
+  .ring i{width:58px;height:58px;border-radius:50%;background:var(--surface);display:grid;place-items:center;
+    font-family:var(--mono);font-weight:700;font-size:15px;font-style:normal;}
+  .prog-info b{font-size:15px;}
+  .prog-info p{margin:2px 0 0;font-size:13px;color:var(--t2);}
+  .prog-info .chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .mini{font-size:11.5px;padding:4px 9px;border-radius:999px;background:var(--bg-2);color:var(--t2);border:1px solid var(--border);}
+  .mini.mint{color:var(--mint);border-color:rgba(61,220,151,.35);}
+  .mini.sky{color:var(--sky);border-color:rgba(95,184,255,.35);}
+
+  /* Day chips */
+  .day-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 4px 12px;scrollbar-width:none;}
+  .day-chips::-webkit-scrollbar{display:none;}
+  .chip{flex:none;min-height:44px;padding:0 18px;border-radius:14px;border:1px solid var(--border);
+    background:var(--surface);color:var(--t2);font-weight:700;font-size:14px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;line-height:1.1;}
+  .chip small{font-size:10.5px;font-weight:600;color:var(--t3);}
+  .chip[aria-pressed="true"]{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-color:transparent;
+    box-shadow:0 8px 22px rgba(124,107,255,.4);}
+  .chip[aria-pressed="true"] small{color:rgba(255,255,255,.85);}
+
+  /* Next action card */
+  .next-card{border-radius:22px;padding:20px;margin-bottom:18px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,#3a2f8f,#5b3fb0 55%,#8a3f9c);border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 20px 50px rgba(80,40,160,.4);}
+  .next-card .tag{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;color:#e9d9ff;}
+  .next-card .tag .pulse{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 0 rgba(61,220,151,.7);
+    animation:ring 2s infinite;}
+  @keyframes ring{70%{box-shadow:0 0 0 8px rgba(61,220,151,0);}100%{box-shadow:0 0 0 0 rgba(61,220,151,0);}}
+  .next-role{margin:10px 0 2px;font-size:25px;font-weight:800;letter-spacing:-.01em;}
+  .next-when{font-family:var(--mono);font-size:15px;color:#efe7ff;}
+  .next-loc{color:#dccdff;font-size:13.5px;margin-top:2px;}
+  .next-note{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.22);
+    border:1px solid rgba(255,255,255,.16);font-size:13px;display:flex;gap:8px;}
+  .next-note b{color:#fff;}
+  .next-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 18px;
+    border-radius:14px;border:1px solid var(--border);background:var(--surface-2);color:var(--t1);
+    font-weight:700;font-size:14.5px;flex:1;transition:transform .12s,filter .15s,background .15s;}
+  .btn:active{transform:scale(.98);}
+  .btn.light{background:#fff;color:#3a2f8f;border-color:transparent;}
+  .btn.clear{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.25);}
+  .btn.mint{background:linear-gradient(135deg,var(--mint),#22b57a);color:#04231a;border-color:transparent;}
+  .btn.stop{background:linear-gradient(135deg,#ff6b6b,#e23b3b);color:#fff;border-color:transparent;}
+
+  /* Clock bar (sticky bottom) */
+  .clockbar{position:fixed;left:0;right:0;bottom:0;z-index:80;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(14,16,32,0),rgba(14,16,32,.92) 40%);}
+  .clockbar-inner{max-width:460px;margin:0 auto;display:flex;align-items:center;gap:12px;
+    padding:10px 12px 10px 16px;border-radius:18px;background:var(--surface);border:1px solid var(--border-soft);
+    box-shadow:0 14px 40px rgba(0,0,0,.5);}
+  .clockbar-inner.on{border-color:rgba(61,220,151,.5);background:linear-gradient(135deg,rgba(61,220,151,.12),var(--surface));}
+  .cb-read{flex:1;min-width:0;}
+  .cb-read small{color:var(--t3);font-size:11.5px;display:block;}
+  .cb-read b{font-family:var(--mono);font-size:17px;}
+  .clockbar .btn{flex:none;min-width:132px;}
+
+  /* Timeline */
+  .section-h{display:flex;align-items:center;justify-content:space-between;margin:6px 4px 12px;}
+  .section-h h2{margin:0;font-size:17px;font-weight:800;letter-spacing:-.01em;}
+  .section-h .link{font-size:13px;color:var(--sky);background:none;border:0;font-weight:700;}
+  .timeline{position:relative;padding-left:30px;}
+  .timeline::before{content:"";position:absolute;left:11px;top:6px;bottom:6px;width:2px;
+    background:linear-gradient(var(--brand),transparent);}
+  .tl-item{position:relative;margin-bottom:14px;}
+  .tl-item.hide{display:none;}
+  .tl-dot{position:absolute;left:-30px;top:18px;width:24px;height:24px;border-radius:50%;
+    background:var(--surface);border:2px solid var(--border-soft);display:grid;place-items:center;font-size:11px;}
+  .tl-item.done .tl-dot{background:var(--mint);border-color:var(--mint);color:#04231a;font-weight:800;}
+  .tl-item.now .tl-dot{background:var(--brand);border-color:var(--brand);box-shadow:0 0 0 4px rgba(124,107,255,.25);}
+  .tl-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;}
+  .tl-item.now .tl-card{border-color:rgba(124,107,255,.45);}
+  .tl-time{font-family:var(--mono);font-size:12.5px;color:var(--t3);}
+  .tl-role{font-size:16px;font-weight:800;margin:2px 0;}
+  .tl-loc{font-size:13px;color:var(--t2);}
+  .tl-foot{display:flex;align-items:center;gap:8px;margin-top:10px;}
+  .status{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;}
+  .status.done{background:rgba(61,220,151,.14);color:var(--mint);}
+  .status.confirmed{background:rgba(95,184,255,.14);color:var(--sky);}
+  .tl-details{margin-left:auto;background:none;border:1px solid var(--border);border-radius:10px;
+    min-height:40px;padding:0 14px;color:var(--t2);font-weight:700;font-size:13px;}
+
+  /* Cards row */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0;}
+  .info-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;}
+  .info-card .h{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t3);font-weight:700;
+    text-transform:uppercase;letter-spacing:.04em;}
+  .info-card b{display:block;margin-top:8px;font-size:15px;}
+  .info-card p{margin:2px 0 0;font-size:12.5px;color:var(--t2);}
+  .info-card.full{grid-column:1/-1;}
+
+  /* Announcement */
+  .announce{border-radius:18px;padding:16px;margin-bottom:18px;border:1px solid rgba(255,107,176,.4);
+    background:linear-gradient(135deg,rgba(255,107,176,.14),var(--surface));}
+  .announce.read{border-color:var(--border);background:var(--surface);}
+  .announce .a-top{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--pink);}
+  .announce.read .a-top{color:var(--t3);}
+  .announce h3{margin:8px 0 4px;font-size:16px;}
+  .announce p{margin:0 0 12px;font-size:13.5px;color:var(--t2);}
+
+  /* Open shifts */
+  .open-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;
+    display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+  .open-card.claimed{border-color:rgba(61,220,151,.5);background:linear-gradient(135deg,rgba(61,220,151,.1),var(--surface));}
+  .open-card .oc-info{flex:1;min-width:0;}
+  .open-card b{font-size:14.5px;}
+  .open-card p{margin:2px 0 0;font-size:12.5px;color:var(--t2);}
+  .open-card .claim{flex:none;min-height:44px;padding:0 16px;border-radius:12px;font-weight:700;font-size:13.5px;
+    background:linear-gradient(135deg,var(--mint),#22b57a);color:#04231a;border:0;}
+  .open-card .claim:disabled{background:var(--bg-3);color:var(--t3);}
+  .urg{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:999px;background:rgba(255,194,75,.16);color:var(--amber);}
+
+  /* Sheet (open shifts drawer + details) */
+  .sheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .sheet-scrim.show{opacity:1;pointer-events:auto;}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:160;max-width:460px;margin:0 auto;
+    background:var(--bg-1);border-radius:22px 22px 0 0;border:1px solid var(--border-soft);border-bottom:0;
+    padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1),visibility 0s linear .28s;
+    max-height:82vh;overflow-y:auto;visibility:hidden;pointer-events:none;}
+  .sheet.show{transform:translateY(0);visibility:visible;pointer-events:auto;transition-delay:0s;}
+  .sheet-grab{width:44px;height:5px;border-radius:999px;background:var(--border-soft);margin:6px auto 12px;}
+  .sheet h2{margin:0 0 4px;font-size:19px;}
+  .sheet .close{position:absolute;right:14px;top:14px;width:40px;height:40px;border-radius:12px;
+    background:var(--surface);border:1px solid var(--border);color:var(--t2);font-size:18px;}
+
+  /* Nav drawer */
+  .drawer-scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:170;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .drawer-scrim.show{opacity:1;pointer-events:auto;}
+  .drawer{position:fixed;left:0;top:0;bottom:0;width:270px;z-index:180;background:var(--bg-1);
+    border-right:1px solid var(--border-soft);transform:translateX(-100%);transition:transform .25s;padding:20px 16px;}
+  .drawer.show{transform:translateX(0);}
+  .drawer .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+  .drawer .brand div{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--pink));
+    display:grid;place-items:center;font-weight:800;color:#fff;}
+  .drawer a{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 12px;border-radius:12px;
+    text-decoration:none;color:var(--t2);font-weight:600;}
+  .drawer a[aria-current]{background:var(--surface-2);color:#fff;}
+
+  .toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(16px);
+    z-index:200;background:var(--surface-2);border:1px solid var(--mint);color:var(--t1);padding:12px 18px;
+    border-radius:14px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);max-width:88vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .switcher{margin:22px 0 8px;padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--border);}
+  .switcher .lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);display:block;margin-bottom:8px;}
+  .switcher-links{display:flex;flex-wrap:wrap;gap:8px;}
+  .switcher a{padding:8px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);
+    text-decoration:none;font-size:12.5px;color:var(--t2);}
+  .switcher a.here{color:#fff;border-color:var(--brand);background:linear-gradient(135deg,rgba(124,107,255,.35),rgba(176,107,255,.25));}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+
+  @media(min-width:900px){
+    .phone{max-width:520px;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important;}
+    .next-card .tag .pulse{animation:none;}
+  }
+</style>
+</head>
+<body data-layout="my-con-weekend">
+<a class="skip-link" href="#main">Skip to my weekend</a>
+
+<div class="phone">
+  <span class="sample-pill">Non-production design sample &middot; My Con Weekend</span>
+
+  <div class="top">
+    <button class="menu-btn" data-action="toggle-menu" aria-label="Open menu" aria-expanded="false"><span></span></button>
+    <div class="who">
+      <small>Delta H Con 2027 &middot; Guest Relations</small>
+      <b>Hi, Jamie Rivera</b>
+    </div>
+    <div class="avatar" aria-hidden="true">JR</div>
+  </div>
+
+  <h1 class="hero-h" id="main">Your con weekend</h1>
+  <p class="hero-sub">Approved volunteer &middot; <b id="dayLabel">Friday</b> &middot; here's what's next.</p>
+
+  <!-- Progress -->
+  <div class="prog-band">
+    <div class="ring" style="--pct:37.5;position:relative;" aria-hidden="true"><i>6/16</i></div>
+    <div class="prog-info">
+      <b>6 of 16 hours complete</b>
+      <p>You're on track &mdash; projected to finish with hours to spare.</p>
+      <div class="chips">
+        <span class="mini mint">6 hrs done</span>
+        <span class="mini sky">12 hrs scheduled</span>
+        <span class="mini">10 hrs to goal</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Day chips -->
+  <div class="day-chips" role="group" aria-label="Choose convention day">
+    <button class="chip" data-action="set-day" data-day="friday" aria-pressed="true">Fri<small>Jul 16</small></button>
+    <button class="chip" data-action="set-day" data-day="saturday" aria-pressed="false">Sat<small>Jul 17</small></button>
+    <button class="chip" data-action="set-day" data-day="sunday" aria-pressed="false">Sun<small>Jul 18</small></button>
+  </div>
+
+  <!-- Next action -->
+  <section class="next-card" aria-labelledby="nextRole">
+    <span class="tag"><span class="pulse" aria-hidden="true"></span> Up next &middot; <span id="nextDayTag">Friday</span></span>
+    <h2 class="next-role" id="nextRole">Registration Desk A</h2>
+    <div class="next-when" id="nextWhen">Friday &middot; 2:00 PM &ndash; 6:00 PM</div>
+    <div class="next-loc" id="nextLoc">Registration Desk A &middot; 4 hours</div>
+    <div class="next-note" id="nextNote"><span aria-hidden="true">&#9200;</span><span><b>Report 15 minutes early.</b> Orientation 12:30 PM in Ballroom C beforehand.</span></div>
+    <div class="next-actions">
+      <button class="btn mint" data-action="clock-toggle" aria-pressed="false" id="heroClock">Clock In</button>
+      <button class="btn clear" data-action="view-shift" data-shift="friday">Shift details</button>
+    </div>
+  </section>
+
+  <!-- Announcement -->
+  <section class="announce" id="announce" aria-labelledby="ann-h">
+    <div class="a-top"><span aria-hidden="true">&#9733;</span> New from your coordinator</div>
+    <h3 id="ann-h">Friday orientation &mdash; 12:30 PM</h3>
+    <p>Guest Relations orientation is at 12:30 PM in Ballroom C before your Friday shift. See you there!</p>
+    <button class="btn light" style="flex:0 0 auto;min-width:150px;" data-action="mark-read" id="markReadBtn">Got it, mark read</button>
+  </section>
+
+  <!-- Timeline -->
+  <div class="section-h">
+    <h2>Weekend timeline</h2>
+    <button class="link" data-action="browse-open">Find open shifts</button>
+  </div>
+  <div class="timeline" id="timeline">
+    <div class="tl-item done" data-day="friday">
+      <div class="tl-dot" aria-hidden="true">&#10003;</div>
+      <div class="tl-card">
+        <div class="tl-time">Thursday &middot; earlier</div>
+        <div class="tl-role">Setup crew</div>
+        <div class="tl-loc">6 hours already logged toward your 16</div>
+        <div class="tl-foot"><span class="status done">Completed &middot; 6 hrs</span></div>
+      </div>
+    </div>
+    <div class="tl-item now" data-day="friday">
+      <div class="tl-dot" aria-hidden="true">&#9679;</div>
+      <div class="tl-card">
+        <div class="tl-time">Friday &middot; 2:00 PM &ndash; 6:00 PM</div>
+        <div class="tl-role">Registration Desk A</div>
+        <div class="tl-loc">Report 15 minutes early &middot; Registration Desk A</div>
+        <div class="tl-foot"><span class="status confirmed">Confirmed</span><button class="tl-details" data-action="view-shift" data-shift="friday">Details</button></div>
+      </div>
+    </div>
+    <div class="tl-item" data-day="saturday">
+      <div class="tl-dot" aria-hidden="true"></div>
+      <div class="tl-card">
+        <div class="tl-time">Saturday &middot; 9:00 AM &ndash; 1:00 PM</div>
+        <div class="tl-role">Guest Services</div>
+        <div class="tl-loc">4 hours &middot; Guest Services desk</div>
+        <div class="tl-foot"><span class="status confirmed">Confirmed</span><button class="tl-details" data-action="view-shift" data-shift="saturday">Details</button></div>
+      </div>
+    </div>
+    <div class="tl-item" data-day="sunday">
+      <div class="tl-dot" aria-hidden="true"></div>
+      <div class="tl-card">
+        <div class="tl-time">Sunday &middot; 10:00 AM &ndash; 2:00 PM</div>
+        <div class="tl-role">Line Control</div>
+        <div class="tl-loc">4 hours &middot; main hall queue</div>
+        <div class="tl-foot"><span class="status confirmed">Confirmed</span><button class="tl-details" data-action="view-shift" data-shift="sunday">Details</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logistics cards -->
+  <div class="cards">
+    <div class="info-card">
+      <div class="h"><span aria-hidden="true">&#127968;</span> Crash space</div>
+      <b>Room 814</b>
+      <p>Approved &middot; check-in Friday after 4:00 PM</p>
+    </div>
+    <div class="info-card">
+      <div class="h"><span aria-hidden="true">&#128737;</span> Safety</div>
+      <b>Operations Desk</b>
+      <p>Call extension 911</p>
+    </div>
+  </div>
+
+  <!-- Nav switcher -->
+  <nav class="switcher" aria-label="Layout samples">
+    <span class="lab">Layout samples</span>
+    <div class="switcher-links">
+      <a href="../index.html">&larr; Hub</a>
+      <a href="../01-command-center/index.html">01 Command Center</a>
+      <a class="here" href="../02-my-con-weekend/index.html" aria-current="page">02 My Con Weekend</a>
+      <a href="../03-shift-marketplace/index.html">03 Shift Marketplace</a>
+      <a href="../04-calm-check-in/index.html">04 Calm Check-In</a>
+    </div>
+  </nav>
+</div>
+
+<!-- Sticky clock bar -->
+<div class="clockbar">
+  <div class="clockbar-inner" id="clockbar">
+    <div class="cb-read">
+      <small id="clockHint">Ready to clock in</small>
+      <b id="clockTime">Off duty</b>
+    </div>
+    <button class="btn mint" data-action="clock-toggle" aria-pressed="false" id="barClock">Clock In</button>
+  </div>
+</div>
+
+<!-- Open shifts sheet -->
+<div class="sheet-scrim" data-action="close-sheet" aria-hidden="true"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h" aria-hidden="true">
+  <div class="sheet-grab" aria-hidden="true"></div>
+  <button class="close" data-action="close-sheet" aria-label="Close">&times;</button>
+  <h2 id="sheet-h">Open shifts near you</h2>
+  <p style="color:var(--t2);font-size:13.5px;margin:0 0 14px;">Guest Relations shifts that still need coverage.</p>
+  <div id="sheetBody">
+    <div class="open-card" data-open="badge">
+      <div class="oc-info"><b>Badge Pickup</b><p>Saturday 8:00 AM &ndash; 12:00 PM &middot; Registration</p></div>
+      <span class="urg">Needs 2</span>
+      <button class="claim" data-action="claim-shift" data-shift-id="badge">Claim</button>
+    </div>
+    <div class="open-card" data-open="panel">
+      <div class="oc-info"><b>Panel Runner</b><p>Saturday 2:00 PM &ndash; 6:00 PM &middot; Programming</p></div>
+      <span class="urg">Needs 2</span>
+      <button class="claim" data-action="claim-shift" data-shift-id="panel">Claim</button>
+    </div>
+    <div class="open-card" data-open="green">
+      <div class="oc-info"><b>Green Room Support</b><p>Sunday 11:00 AM &ndash; 3:00 PM &middot; Guest Relations</p></div>
+      <span class="urg">Urgent</span>
+      <button class="claim" data-action="claim-shift" data-shift-id="green">Claim</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail sheet -->
+<div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detail-h" aria-hidden="true">
+  <div class="sheet-grab" aria-hidden="true"></div>
+  <button class="close" data-action="close-sheet" aria-label="Close">&times;</button>
+  <h2 id="detail-h">Shift details</h2>
+  <p id="detailBody" style="color:var(--t2);font-size:14.5px;line-height:1.6;"></p>
+</div>
+
+<!-- Nav drawer -->
+<div class="drawer-scrim" data-action="toggle-menu" aria-hidden="true"></div>
+<nav class="drawer" id="drawer" aria-label="Menu" aria-hidden="true">
+  <div class="brand"><div aria-hidden="true">Δ</div><b>Delta H Volunteer</b></div>
+  <a href="#main" aria-current="page">&#128197; My Weekend</a>
+  <a href="#timeline">&#128338; Timeline</a>
+  <a href="#" data-action="browse-open">&#128269; Open Shifts</a>
+  <a href="../index.html">&#9776; All layout samples</a>
+</nav>
+
+<div class="toast" id="toast" role="status"></div>
+<div class="sr-only" id="live" aria-live="polite"></div>
+
+<script>
+(function(){
+  var live=document.getElementById('live');
+  function announce(m){live.textContent='';setTimeout(function(){live.textContent=m;},30);}
+  var toast=document.getElementById('toast');
+  function showToast(m){toast.textContent=m;toast.classList.add('show');clearTimeout(toast._t);
+    toast._t=setTimeout(function(){toast.classList.remove('show');},3000);}
+
+  var DAYS={
+    friday:{label:'Friday',role:'Registration Desk A',when:'Friday · 2:00 PM – 6:00 PM',loc:'Registration Desk A · 4 hours',
+      note:'<b>Report 15 minutes early.</b> Orientation 12:30 PM in Ballroom C beforehand.'},
+    saturday:{label:'Saturday',role:'Guest Services',when:'Saturday · 9:00 AM – 1:00 PM',loc:'Guest Services desk · 4 hours',
+      note:'Grab water before the morning rush.'},
+    sunday:{label:'Sunday',role:'Line Control',when:'Sunday · 10:00 AM – 2:00 PM',loc:'Main hall queue · 4 hours',
+      note:'Tear-down help appreciated after your shift.'}
+  };
+  var DETAILS={
+    friday:'Friday 2:00 PM – 6:00 PM at Registration Desk A. Report 15 minutes early (1:45 PM). Guest Relations orientation is at 12:30 PM in Ballroom C before your shift.',
+    saturday:'Saturday 9:00 AM – 1:00 PM at the Guest Services desk. 4 hours toward your requirement.',
+    sunday:'Sunday 10:00 AM – 2:00 PM on Line Control in the main hall. 4 hours toward your requirement.'
+  };
+
+  function setDay(day){
+    document.querySelectorAll('[data-action="set-day"]').forEach(function(c){
+      c.setAttribute('aria-pressed',c.dataset.day===day?'true':'false');});
+    var d=DAYS[day];
+    document.getElementById('dayLabel').textContent=d.label;
+    document.getElementById('nextDayTag').textContent=d.label;
+    document.getElementById('nextRole').textContent=d.role;
+    document.getElementById('nextWhen').textContent=d.when;
+    document.getElementById('nextLoc').textContent=d.loc;
+    document.getElementById('nextNote').innerHTML='<span aria-hidden="true">&#9200;</span><span>'+d.note+'</span>';
+    document.querySelectorAll('#timeline .tl-item').forEach(function(it){
+      it.classList.toggle('hide', it.dataset.day && it.dataset.day!==day);
+    });
+    // update hero clock action target day for details buttons
+    document.querySelector('.next-actions [data-action="view-shift"]').dataset.shift=day;
+    announce('Showing your '+d.label+' plan. Next up: '+d.role+', '+d.when+'.');
+  }
+
+  // Clock
+  var clocked=false,sim=0,tick=null;
+  function pad(n){return(n<10?'0':'')+n;}
+  function renderClock(){var s=sim;document.getElementById('clockTime').textContent=
+    pad(Math.floor(s/3600))+':'+pad(Math.floor(s/60)%60)+':'+pad(s%60);}
+  function setClock(on){
+    clocked=on;
+    document.querySelectorAll('[data-action="clock-toggle"]').forEach(function(b){
+      b.setAttribute('aria-pressed',on?'true':'false');
+      b.textContent=on?'Clock Out':'Clock In';
+      b.classList.toggle('mint',!on); b.classList.toggle('stop',on);
+    });
+    var bar=document.getElementById('clockbar');
+    if(on){bar.classList.add('on');document.getElementById('clockHint').textContent='On duty · Registration Desk A';
+      sim=0;renderClock();tick=setInterval(function(){sim++;renderClock();},1000);
+      showToast('Clocked in — have a great shift!');announce('Clocked in at Registration Desk A. Timer started.');}
+    else{bar.classList.remove('on');clearInterval(tick);
+      document.getElementById('clockTime').textContent='Off duty';
+      document.getElementById('clockHint').textContent='Shift logged';
+      showToast('Clocked out — hours logged');announce('Clocked out. Your hours were logged.');}
+  }
+
+  // Sheets
+  var scrim=document.querySelector('.sheet-scrim');
+  function openSheet(id){closeSheets();scrim.classList.add('show');
+    var s=document.getElementById(id);s.classList.add('show');s.setAttribute('aria-hidden','false');
+    var f=s.querySelector('button');if(f)f.focus();}
+  function closeSheets(){scrim.classList.remove('show');
+    document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('show');s.setAttribute('aria-hidden','true');});}
+
+  function claim(btn){
+    var card=btn.closest('.open-card');if(!card||card.classList.contains('claimed'))return;
+    card.classList.add('claimed');btn.textContent='Claimed ✓';btn.disabled=true;
+    var u=card.querySelector('.urg');if(u){u.textContent='You’re on it';u.style.background='rgba(61,220,151,.16)';u.style.color='var(--mint)';}
+    var name=card.querySelector('b').textContent;
+    showToast('Claimed '+name+' — added to your weekend');announce('Claimed '+name+'. Added to your schedule.');
+  }
+  function markRead(){
+    var a=document.getElementById('announce');a.classList.add('read');
+    var b=document.getElementById('markReadBtn');b.disabled=true;b.textContent='Read ✓';
+    showToast('Announcement marked read');announce('Announcement marked as read.');
+  }
+  function viewShift(id){document.getElementById('detailBody').textContent=DETAILS[id]||'Shift details';openSheet('detailSheet');
+    announce('Shift details: '+(DETAILS[id]||''));}
+
+  function toggleMenu(force){
+    var open=typeof force==='boolean'?force:!document.getElementById('drawer').classList.contains('show');
+    document.getElementById('drawer').classList.toggle('show',open);
+    document.querySelector('.drawer-scrim').classList.toggle('show',open);
+    document.getElementById('drawer').setAttribute('aria-hidden',open?'false':'true');
+    var m=document.querySelector('.menu-btn');if(m)m.setAttribute('aria-expanded',open?'true':'false');
+  }
+
+  document.addEventListener('click',function(e){
+    var el=e.target.closest('[data-action]');if(!el)return;
+    var a=el.dataset.action;
+    if(a==='clock-toggle'){e.preventDefault();setClock(!clocked);}
+    else if(a==='set-day'){setDay(el.dataset.day);}
+    else if(a==='claim-shift'){claim(el);}
+    else if(a==='mark-read'){markRead();}
+    else if(a==='view-shift'){e.preventDefault();viewShift(el.dataset.shift);}
+    else if(a==='browse-open'){e.preventDefault();toggleMenu(false);openSheet('sheet');announce('Browsing open shifts.');}
+    else if(a==='close-sheet'){closeSheets();}
+    else if(a==='toggle-menu'){e.preventDefault();toggleMenu();}
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeSheets();toggleMenu(false);}});
+  setDay('friday');
+})();
+</script>
+</body>
+</html>

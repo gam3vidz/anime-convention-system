@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center — Delta H Volunteer Dashboard (sample)</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;}
+  :root{
+    --bg-0:#0f1117; --bg-1:#161922; --bg-2:#1c2030; --bg-3:#232839; --bg-hover:#2a3045;
+    --border:#2d3247; --border-light:#3a4055;
+    --t1:#e8eaf0; --t2:#a4abbd; --t3:#6b7388; --tdim:#4a5163;
+    --brand:#6366f1; --brand2:#8b5cf6; --pink:#ec4899; --accent:#06b6d4;
+    --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --rail:240px;
+  }
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;font-family:var(--sans);background:var(--bg-0);color:var(--t1);line-height:1.45;
+    -webkit-font-smoothing:antialiased;font-size:14px;}
+  .mono{font-family:var(--mono);}
+  a{color:inherit;}
+  button{font-family:inherit;color:inherit;cursor:pointer;}
+  .skip-link{position:absolute;left:12px;top:-60px;z-index:200;background:var(--brand);color:#fff;
+    padding:12px 18px;border-radius:8px;font-weight:700;text-decoration:none;transition:top .18s;}
+  .skip-link:focus{top:12px;}
+  :focus-visible{outline:3px solid #a5b4fc;outline-offset:2px;border-radius:4px;}
+
+  /* Sample banner */
+  .sample-strip{background:repeating-linear-gradient(45deg,rgba(245,158,11,.14),rgba(245,158,11,.14) 12px,rgba(245,158,11,.06) 12px,rgba(245,158,11,.06) 24px);
+    border-bottom:1px solid rgba(245,158,11,.35);color:#fbbf24;font-size:12px;font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase;padding:6px 16px;text-align:center;}
+
+  .app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh;}
+
+  /* Left rail */
+  .rail{background:var(--bg-1);border-right:1px solid var(--border);display:flex;flex-direction:column;
+    position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .rail-brand{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid var(--border);}
+  .rail-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand2));
+    display:grid;place-items:center;font-weight:800;font-family:var(--mono);color:#fff;flex:none;}
+  .rail-brand b{font-size:14px;letter-spacing:-.01em;}
+  .rail-brand small{display:block;color:var(--t3);font-size:11px;font-weight:500;}
+  .rail-section{padding:14px 12px 4px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--tdim);}
+  .rail-nav{display:flex;flex-direction:column;gap:2px;padding:0 8px;}
+  .nav-item{display:flex;align-items:center;gap:11px;min-height:40px;padding:0 12px;border-radius:8px;
+    color:var(--t2);text-decoration:none;font-size:13.5px;font-weight:500;border:1px solid transparent;}
+  .nav-item .dot{width:7px;height:7px;border-radius:50%;background:var(--border-light);flex:none;}
+  .nav-item:hover{background:var(--bg-2);color:var(--t1);}
+  .nav-item[aria-current="page"]{background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.12));
+    color:#fff;border-color:rgba(99,102,241,.4);}
+  .nav-item[aria-current="page"] .dot{background:var(--brand);box-shadow:0 0 8px var(--brand);}
+  .rail-foot{margin-top:auto;padding:12px;border-top:1px solid var(--border);}
+  .user-mini{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:var(--bg-2);}
+  .avatar{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--brand));
+    display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;flex:none;}
+  .user-mini b{font-size:13px;display:block;}
+  .user-mini small{color:var(--t3);font-size:11px;}
+
+  /* Main */
+  .main{display:flex;flex-direction:column;min-width:0;}
+  .topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:12px 20px;background:rgba(15,17,23,.86);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);}
+  .hamburger{display:none;width:44px;height:44px;border-radius:9px;background:var(--bg-2);
+    border:1px solid var(--border);align-items:center;justify-content:center;flex:none;}
+  .hamburger span{width:18px;height:2px;background:var(--t1);box-shadow:0 -6px 0 var(--t1),0 6px 0 var(--t1);}
+  .page-title h1{margin:0;font-size:18px;font-weight:800;letter-spacing:-.01em;}
+  .page-title p{margin:0;font-size:12px;color:var(--t3);}
+  .topbar-spacer{flex:1;}
+  .con-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
+    background:var(--bg-2);border:1px solid var(--border);font-size:12px;color:var(--t2);}
+  .con-chip b{color:var(--t1);}
+
+  /* Clock console */
+  .clock-console{display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:12px;
+    background:var(--bg-2);border:1px solid var(--border);}
+  .clock-console.on{border-color:rgba(16,185,129,.5);background:linear-gradient(135deg,rgba(16,185,129,.12),var(--bg-2));}
+  .clock-led{width:10px;height:10px;border-radius:50%;background:var(--tdim);flex:none;}
+  .clock-console.on .clock-led{background:var(--success);box-shadow:0 0 10px var(--success);animation:pulse 1.6s infinite;}
+  @keyframes pulse{50%{opacity:.4;}}
+  .clock-read b{display:block;font-family:var(--mono);font-size:16px;letter-spacing:.02em;}
+  .clock-read small{color:var(--t3);font-size:11px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;
+    padding:0 16px;border-radius:9px;border:1px solid var(--border);background:var(--bg-3);
+    color:var(--t1);font-size:13.5px;font-weight:600;transition:background .15s,border-color .15s,filter .15s;}
+  .btn:hover{background:var(--bg-hover);border-color:var(--border-light);}
+  .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));border-color:transparent;color:#fff;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.go{background:linear-gradient(135deg,var(--success),#059669);border-color:transparent;color:#fff;}
+  .btn.stop{background:linear-gradient(135deg,var(--danger),#dc2626);border-color:transparent;color:#fff;}
+  .btn.ghost{background:transparent;}
+  .btn.sm{min-height:36px;padding:0 12px;font-size:12.5px;}
+
+  .content{padding:20px;display:flex;flex-direction:column;gap:18px;max-width:1500px;width:100%;}
+
+  /* Stat grid */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;}
+  .stat-card{position:relative;background:var(--bg-1);border:1px solid var(--border);border-radius:14px;
+    padding:16px;overflow:hidden;}
+  .stat-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand);}
+  .stat-card.ok::before{background:var(--success);}
+  .stat-card.warn::before{background:var(--warning);}
+  .stat-card.info::before{background:var(--accent);}
+  .stat-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);}
+  .stat-value{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:-.01em;margin:4px 0 2px;}
+  .stat-value small{font-size:14px;color:var(--t3);}
+  .stat-sub{font-size:12px;color:var(--t2);}
+  .progress{height:7px;border-radius:999px;background:var(--bg-3);overflow:hidden;margin-top:10px;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:999px;
+    transition:width .5s cubic-bezier(.4,0,.2,1);}
+  .progress-fill.ok{background:linear-gradient(90deg,var(--success),#34d399);}
+
+  .grid-2{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;align-items:start;}
+  .card{background:var(--bg-1);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+  .card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;
+    border-bottom:1px solid var(--border);}
+  .card-title{font-size:14px;font-weight:700;letter-spacing:.01em;display:flex;align-items:center;gap:9px;}
+  .card-title .tick{width:4px;height:16px;border-radius:2px;background:var(--brand);}
+  .card-body{padding:16px;}
+
+  .segmented{display:inline-flex;background:var(--bg-3);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px;}
+  .seg{min-height:34px;padding:0 14px;border:0;background:transparent;border-radius:7px;color:var(--t2);
+    font-size:12.5px;font-weight:600;}
+  .seg[aria-pressed="true"]{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;}
+
+  /* Next shift feature */
+  .next-shift{border:1px solid rgba(99,102,241,.4);border-radius:14px;overflow:hidden;
+    background:linear-gradient(135deg,rgba(99,102,241,.14),rgba(139,92,246,.06));}
+  .next-shift .ns-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 16px;border-bottom:1px solid rgba(99,102,241,.25);}
+  .ns-top .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#a5b4fc;font-weight:700;}
+  .ns-body{padding:16px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;}
+  .ns-when{font-family:var(--mono);font-size:15px;color:var(--t1);}
+  .ns-role{font-size:22px;font-weight:800;letter-spacing:-.01em;}
+  .ns-loc{color:var(--t2);font-size:13px;}
+  .ns-note{padding:8px 12px;border-radius:9px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);
+    color:#fbbf24;font-size:12.5px;font-weight:600;}
+  .ns-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* Schedule list */
+  .sched{display:flex;flex-direction:column;gap:8px;}
+  .shift-row{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;
+    padding:12px;border:1px solid var(--border);border-radius:11px;background:var(--bg-2);}
+  .shift-row.dim{opacity:.55;}
+  .sr-day{font-family:var(--mono);font-size:12px;color:var(--t3);text-align:center;line-height:1.2;}
+  .sr-day b{display:block;font-size:15px;color:var(--t1);}
+  .sr-role{font-weight:700;font-size:14px;}
+  .sr-meta{font-size:12px;color:var(--t2);}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+  .badge.ok{background:rgba(16,185,129,.14);color:#34d399;}
+  .badge.info{background:rgba(6,182,212,.14);color:#22d3ee;}
+  .badge.warn{background:rgba(245,158,11,.14);color:#fbbf24;}
+  .badge.neutral{background:var(--bg-3);color:var(--t2);}
+
+  /* Open shifts */
+  .open-list{display:flex;flex-direction:column;gap:10px;}
+  .open-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);
+    border-radius:11px;background:var(--bg-2);}
+  .open-row.claimed{border-color:rgba(16,185,129,.45);background:linear-gradient(135deg,rgba(16,185,129,.10),var(--bg-2));}
+  .cov{flex:none;width:44px;text-align:center;}
+  .cov b{font-family:var(--mono);font-size:14px;}
+  .cov small{display:block;font-size:10px;color:var(--t3);}
+  .open-info{flex:1;min-width:0;}
+  .open-info b{font-size:13.5px;}
+  .open-info div{font-size:12px;color:var(--t2);}
+
+  /* Side stack */
+  .side-stack{display:flex;flex-direction:column;gap:18px;}
+  .announce{border:1px solid var(--border);border-radius:14px;background:var(--bg-1);padding:16px;}
+  .announce.unread{border-color:rgba(236,72,153,.4);background:linear-gradient(135deg,rgba(236,72,153,.10),var(--bg-1));}
+  .announce .a-top{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--pink);font-weight:700;margin-bottom:8px;}
+  .announce h3{margin:0 0 6px;font-size:15px;}
+  .announce p{margin:0 0 12px;font-size:13px;color:var(--t2);}
+  .dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;}
+  .dl dt{color:var(--t3);}
+  .dl dd{margin:0;color:var(--t1);}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--bg-3);border:1px solid var(--success);color:var(--t1);padding:12px 18px;border-radius:11px;
+    font-size:13.5px;font-weight:600;box-shadow:0 10px 40px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+    transition:opacity .25s,transform .25s;z-index:300;display:flex;align-items:center;gap:9px;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast .ic{color:var(--success);font-weight:800;}
+
+  .switcher{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px 20px;
+    border-top:1px solid var(--border);background:var(--bg-1);margin-top:auto;}
+  .switcher .lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-right:4px;}
+  .switcher a{padding:7px 12px;border-radius:8px;background:var(--bg-2);border:1px solid var(--border);
+    text-decoration:none;font-size:12.5px;color:var(--t2);}
+  .switcher a:hover{color:var(--t1);border-color:var(--border-light);}
+  .switcher a.here{color:#fff;border-color:var(--brand);background:linear-gradient(135deg,rgba(99,102,241,.3),rgba(139,92,246,.2));}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+
+  /* Mobile */
+  .scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:90;}
+  @media(max-width:960px){
+    .grid-2{grid-template-columns:1fr;}
+  }
+  @media(max-width:768px){
+    .app{grid-template-columns:1fr;}
+    .rail{position:fixed;left:0;top:0;width:264px;z-index:100;transform:translateX(-100%);transition:transform .25s;}
+    body.nav-open .rail{transform:translateX(0);}
+    body.nav-open .scrim{display:block;}
+    .hamburger{display:inline-flex;}
+    .ns-actions{margin-left:0;width:100%;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important;}
+    .clock-console.on .clock-led{animation:none;}
+  }
+</style>
+</head>
+<body data-layout="command-center">
+<a class="skip-link" href="#main">Skip to dashboard</a>
+<div class="sample-strip">Non-production design sample &middot; Command Center layout &middot; Delta H volunteer dashboard mockup</div>
+
+<div class="app">
+  <div class="scrim" data-action="toggle-menu" aria-hidden="true"></div>
+
+  <!-- Left rail -->
+  <nav class="rail" id="rail" aria-label="Primary">
+    <div class="rail-brand">
+      <div class="rail-logo" aria-hidden="true">Δ</div>
+      <div><b>Delta H</b><small>Volunteer Ops</small></div>
+    </div>
+    <div class="rail-section">Volunteer</div>
+    <div class="rail-nav">
+      <a class="nav-item" href="#main" aria-current="page"><span class="dot"></span>Command Center</a>
+      <a class="nav-item" href="#schedule-card"><span class="dot"></span>My Shifts</a>
+      <a class="nav-item" href="#open-card"><span class="dot"></span>Open Shifts</a>
+      <a class="nav-item" href="#logistics"><span class="dot"></span>Crash Space</a>
+      <a class="nav-item" href="#safety"><span class="dot"></span>Safety</a>
+    </div>
+    <div class="rail-foot">
+      <div class="user-mini">
+        <div class="avatar" aria-hidden="true">JR</div>
+        <div><b>Jamie Rivera</b><small>Guest Relations &middot; Approved</small></div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="hamburger" data-action="toggle-menu" aria-label="Open navigation menu" aria-expanded="false"><span></span></button>
+      <div class="page-title">
+        <h1>Command Center</h1>
+        <p>Jamie Rivera &middot; Guest Relations</p>
+      </div>
+      <div class="topbar-spacer"></div>
+      <span class="con-chip">Convention <b>Delta H Con 2027</b></span>
+      <div class="clock-console" id="clockConsole">
+        <span class="clock-led" aria-hidden="true"></span>
+        <div class="clock-read">
+          <b id="clockTime">Off duty</b>
+          <small id="clockHint">Not clocked in</small>
+        </div>
+        <button class="btn go" id="clockBtn" data-action="clock-toggle" aria-pressed="false">Clock In</button>
+      </div>
+    </header>
+
+    <main class="content" id="main">
+      <!-- Metrics -->
+      <section class="stat-grid" aria-label="Hour summary">
+        <div class="stat-card ok">
+          <div class="stat-label">Hours Completed</div>
+          <div class="stat-value">6<small> / 16 hrs</small></div>
+          <div class="stat-sub">Requirement for Delta H Con 2027</div>
+          <div class="progress"><div class="progress-fill ok" style="width:37.5%"></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Hours Scheduled</div>
+          <div class="stat-value">12<small> hrs</small></div>
+          <div class="stat-sub">Across 3 confirmed shifts</div>
+          <div class="progress"><div class="progress-fill" style="width:75%"></div></div>
+        </div>
+        <div class="stat-card info">
+          <div class="stat-label">Projected Total</div>
+          <div class="stat-value">18<small> hrs</small></div>
+          <div class="stat-sub">Completed + scheduled &mdash; clears the 16 hr floor</div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-label">Open Shifts</div>
+          <div class="stat-value" id="openCount">3</div>
+          <div class="stat-sub">Available in your department to claim</div>
+        </div>
+      </section>
+
+      <!-- Next shift -->
+      <section class="next-shift" aria-labelledby="ns-h">
+        <div class="ns-top">
+          <span class="lbl">Next Shift</span>
+          <span class="badge info">Report 15 min early</span>
+        </div>
+        <div class="ns-body">
+          <div>
+            <div class="ns-when">Friday &middot; 2:00 PM &ndash; 6:00 PM</div>
+            <div class="ns-role" id="ns-h">Registration Desk A</div>
+            <div class="ns-loc">Registration Desk A &middot; arrive by 1:45 PM</div>
+          </div>
+          <span class="ns-note">Orientation 12:30 PM in Ballroom C before this shift</span>
+          <div class="ns-actions">
+            <button class="btn primary" data-action="view-shift" data-shift="friday">View Shift Details</button>
+            <button class="btn go" data-action="clock-toggle" aria-hidden="false">Clock In</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid-2">
+        <!-- My schedule -->
+        <section class="card" id="schedule-card">
+          <div class="card-header">
+            <span class="card-title"><span class="tick"></span>My Schedule</span>
+            <div class="segmented" role="group" aria-label="Filter schedule by day">
+              <button class="seg" data-action="set-day" data-day="friday" aria-pressed="true">Fri</button>
+              <button class="seg" data-action="set-day" data-day="saturday" aria-pressed="false">Sat</button>
+              <button class="seg" data-action="set-day" data-day="sunday" aria-pressed="false">Sun</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="sched" id="schedList">
+              <!-- rows injected/toggled by JS -->
+              <div class="shift-row" data-day="friday">
+                <div class="sr-day">FRI<b>2P</b></div>
+                <div><div class="sr-role">Registration Desk A</div><div class="sr-meta">2:00 PM &ndash; 6:00 PM &middot; 4 hrs &middot; report 15 minutes early</div></div>
+                <div style="display:flex;gap:8px;align-items:center;"><span class="badge ok">Confirmed</span><button class="btn sm ghost" data-action="view-shift" data-shift="friday">Details</button></div>
+              </div>
+              <div class="shift-row" data-day="saturday">
+                <div class="sr-day">SAT<b>9A</b></div>
+                <div><div class="sr-role">Guest Services</div><div class="sr-meta">9:00 AM &ndash; 1:00 PM &middot; 4 hrs</div></div>
+                <div style="display:flex;gap:8px;align-items:center;"><span class="badge ok">Confirmed</span><button class="btn sm ghost" data-action="view-shift" data-shift="saturday">Details</button></div>
+              </div>
+              <div class="shift-row" data-day="sunday">
+                <div class="sr-day">SUN<b>10A</b></div>
+                <div><div class="sr-role">Line Control</div><div class="sr-meta">10:00 AM &ndash; 2:00 PM &middot; 4 hrs</div></div>
+                <div style="display:flex;gap:8px;align-items:center;"><span class="badge ok">Confirmed</span><button class="btn sm ghost" data-action="view-shift" data-shift="sunday">Details</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Side stack -->
+        <div class="side-stack">
+          <!-- Announcement -->
+          <section class="announce unread" id="announce" aria-labelledby="ann-h">
+            <div class="a-top"><span aria-hidden="true">&#9679;</span> Coordinator Announcement <span class="badge warn" id="annBadge" style="margin-left:auto;">Unread</span></div>
+            <h3 id="ann-h">Friday orientation &mdash; 12:30 PM</h3>
+            <p>All Guest Relations volunteers: orientation is at 12:30 PM in Ballroom C before Friday shifts. Please arrive on time.</p>
+            <button class="btn sm" data-action="mark-read" id="markReadBtn">Mark as read</button>
+          </section>
+
+          <!-- Crash space -->
+          <section class="card" id="logistics">
+            <div class="card-header"><span class="card-title"><span class="tick" style="background:var(--accent)"></span>Crash Space</span><span class="badge ok">Approved</span></div>
+            <div class="card-body">
+              <dl class="dl">
+                <dt>Room</dt><dd class="mono">Room 814</dd>
+                <dt>Check-in</dt><dd>Friday after 4:00 PM</dd>
+                <dt>Status</dt><dd>Approved &mdash; key at front desk</dd>
+              </dl>
+            </div>
+          </section>
+
+          <!-- Safety -->
+          <section class="card" id="safety">
+            <div class="card-header"><span class="card-title"><span class="tick" style="background:var(--danger)"></span>Safety Contact</span></div>
+            <div class="card-body">
+              <dl class="dl">
+                <dt>Contact</dt><dd>Operations Desk</dd>
+                <dt>Extension</dt><dd class="mono">extension 911</dd>
+              </dl>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Open shifts -->
+      <section class="card" id="open-card" aria-labelledby="open-h">
+        <div class="card-header">
+          <span class="card-title" id="open-h"><span class="tick" style="background:var(--warning)"></span>Open Shifts &mdash; Coverage Board</span>
+          <button class="btn sm" data-action="browse-open">Browse all open shifts</button>
+        </div>
+        <div class="card-body">
+          <div class="open-list" id="openList">
+            <div class="open-row" data-open="badge">
+              <div class="cov"><b>1/3</b><small>filled</small></div>
+              <div class="open-info"><b>Badge Pickup</b><div>Saturday 8:00 AM &ndash; 12:00 PM &middot; Registration &middot; understaffed</div></div>
+              <span class="badge warn">Needs 2</span>
+              <button class="btn go sm" data-action="claim-shift" data-shift-id="badge">Claim</button>
+            </div>
+            <div class="open-row" data-open="panel">
+              <div class="cov"><b>2/4</b><small>filled</small></div>
+              <div class="open-info"><b>Panel Runner</b><div>Saturday 2:00 PM &ndash; 6:00 PM &middot; Programming</div></div>
+              <span class="badge info">Needs 2</span>
+              <button class="btn go sm" data-action="claim-shift" data-shift-id="panel">Claim</button>
+            </div>
+            <div class="open-row" data-open="green">
+              <div class="cov"><b>0/2</b><small>filled</small></div>
+              <div class="open-info"><b>Green Room Support</b><div>Sunday 11:00 AM &ndash; 3:00 PM &middot; Guest Relations</div></div>
+              <span class="badge warn">Urgent</span>
+              <button class="btn go sm" data-action="claim-shift" data-shift-id="green">Claim</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="switcher" aria-label="Layout samples">
+      <span class="lab">Layout samples</span>
+      <a href="../index.html">&larr; Comparison hub</a>
+      <a class="here" href="../01-command-center/index.html" aria-current="page">01 Command Center</a>
+      <a href="../02-my-con-weekend/index.html">02 My Con Weekend</a>
+      <a href="../03-shift-marketplace/index.html">03 Shift Marketplace</a>
+      <a href="../04-calm-check-in/index.html">04 Calm Check-In</a>
+    </nav>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"><span class="ic" aria-hidden="true">&#10003;</span><span id="toastMsg"></span></div>
+<div class="sr-only" id="live" aria-live="polite"></div>
+
+<script>
+(function(){
+  var live=document.getElementById('live');
+  function announce(m){ live.textContent=''; setTimeout(function(){live.textContent=m;},30); }
+  var toast=document.getElementById('toast'),toastMsg=document.getElementById('toastMsg'),tTimer;
+  function showToast(m){ toastMsg.textContent=m; toast.classList.add('show'); clearInterval(tTimer);
+    clearTimeout(toast._t); toast._t=setTimeout(function(){toast.classList.remove('show');},3200); }
+
+  // ── Clock in/out with elapsed timer ──
+  var clocked=false, startAt=0, tick=null;
+  var console_=document.getElementById('clockConsole'),
+      cTime=document.getElementById('clockTime'),
+      cHint=document.getElementById('clockHint');
+  function pad(n){return (n<10?'0':'')+n;}
+  function render(){
+    var s=Math.floor((simNow()-startAt)/1000);
+    cTime.textContent=pad(Math.floor(s/3600))+':'+pad(Math.floor(s/60)%60)+':'+pad(s%60);
+  }
+  var simSeconds=0; function simNow(){return simSeconds*1000;}
+  function setClock(on){
+    clocked=on;
+    document.querySelectorAll('[data-action="clock-toggle"]').forEach(function(b){
+      b.setAttribute('aria-pressed',on?'true':'false');
+      b.textContent=on?'Clock Out':'Clock In';
+      b.classList.toggle('go',!on); b.classList.toggle('stop',on);
+    });
+    if(on){
+      console_.classList.add('on'); cHint.textContent='On duty at Registration Desk A'; simSeconds=0; startAt=0;
+      render(); tick=setInterval(function(){simSeconds++;render();},1000);
+      announce('Clocked in at Registration Desk A. Timer started.'); showToast('Clocked in — timer running');
+    }else{
+      console_.classList.remove('on'); clearInterval(tick);
+      cTime.textContent='Off duty'; cHint.textContent='Shift logged';
+      announce('Clocked out. Hours logged.'); showToast('Clocked out — hours logged');
+    }
+  }
+
+  // ── Day switch ──
+  function setDay(day){
+    document.querySelectorAll('[data-action="set-day"]').forEach(function(b){
+      b.setAttribute('aria-pressed', b.dataset.day===day?'true':'false');
+    });
+    document.querySelectorAll('#schedList .shift-row').forEach(function(r){
+      r.classList.toggle('dim', r.dataset.day!==day);
+    });
+    var names={friday:'Friday',saturday:'Saturday',sunday:'Sunday'};
+    announce('Showing '+names[day]+' schedule.');
+  }
+
+  // ── Claim ──
+  function claim(btn){
+    var row=btn.closest('.open-row'); if(!row||row.classList.contains('claimed'))return;
+    row.classList.add('claimed');
+    btn.textContent='Claimed'; btn.disabled=true; btn.classList.remove('go');
+    var badge=row.querySelector('.badge'); if(badge){badge.className='badge ok';badge.textContent='You’re on it';}
+    var name=row.querySelector('.open-info b').textContent;
+    var oc=document.getElementById('openCount'); var n=Math.max(0,parseInt(oc.textContent,10)-1); oc.textContent=n;
+    announce('Claimed '+name+'. Added to your schedule. '+n+' open shifts remain.');
+    showToast('Claimed '+name+' — added to your schedule');
+  }
+
+  // ── Mark read ──
+  function markRead(){
+    var a=document.getElementById('announce'); a.classList.remove('unread');
+    var b=document.getElementById('annBadge'); b.className='badge neutral'; b.textContent='Read';
+    var btn=document.getElementById('markReadBtn'); btn.disabled=true; btn.textContent='Read';
+    announce('Announcement marked as read.'); showToast('Announcement marked read');
+  }
+
+  // ── View details (lightweight, no external deps) ──
+  function viewShift(id){
+    var map={
+      friday:'Friday 2:00 PM – 6:00 PM — Registration Desk A. Report 15 minutes early. Orientation 12:30 PM in Ballroom C.',
+      saturday:'Saturday 9:00 AM – 1:00 PM — Guest Services.',
+      sunday:'Sunday 10:00 AM – 2:00 PM — Line Control.'
+    };
+    showToast(map[id]||'Shift details'); announce('Shift details: '+(map[id]||''));
+  }
+
+  // ── Menu ──
+  function toggleMenu(force){
+    var open=typeof force==='boolean'?force:!document.body.classList.contains('nav-open');
+    document.body.classList.toggle('nav-open',open);
+    var h=document.querySelector('.hamburger'); if(h)h.setAttribute('aria-expanded',open?'true':'false');
+  }
+
+  document.addEventListener('click',function(e){
+    var el=e.target.closest('[data-action]'); if(!el)return;
+    var a=el.dataset.action;
+    if(a==='clock-toggle'){ e.preventDefault(); setClock(!clocked); }
+    else if(a==='set-day'){ setDay(el.dataset.day); }
+    else if(a==='claim-shift'){ claim(el); }
+    else if(a==='mark-read'){ markRead(); }
+    else if(a==='view-shift'){ viewShift(el.dataset.shift); }
+    else if(a==='browse-open'){ e.preventDefault(); document.getElementById('open-card').scrollIntoView({behavior:'smooth',block:'start'}); announce('Browsing all open shifts.'); }
+    else if(a==='toggle-menu'){ toggleMenu(); }
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape')toggleMenu(false); });
+  setDay('friday');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shift Marketplace — Delta H Volunteer Dashboard (sample)</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;}
+  :root{
+    --bg-0:#071613; --bg-1:#0c211d; --bg-2:#123029; --bg-3:#174036;
+    --surface:#0e2621; --surface-2:#123a31; --border:#1d4a3f; --border-soft:#2a6355;
+    --t1:#eafaf4; --t2:#a3cabc; --t3:#6f9a8b;
+    --teal:#14b8a6; --emerald:#34d399; --deep:#0f766e; --amber:#fbbf24; --coral:#fb7185; --sky:#38bdf8;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  html{-webkit-text-size-adjust:100%;}
+  body{margin:0;font-family:var(--sans);color:var(--t1);line-height:1.5;-webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1000px 500px at 80% -10%,rgba(20,184,166,.2),transparent 60%),
+      radial-gradient(700px 400px at 0% 0%,rgba(15,118,110,.22),transparent 55%),
+      var(--bg-0);min-height:100vh;}
+  a{color:inherit;}
+  button{font-family:inherit;color:inherit;cursor:pointer;}
+  .skip-link{position:absolute;left:12px;top:-60px;z-index:200;background:var(--teal);color:#04231a;
+    padding:12px 18px;border-radius:10px;font-weight:800;text-decoration:none;transition:top .18s;}
+  .skip-link:focus{top:12px;}
+  :focus-visible{outline:3px solid #5eead4;outline-offset:3px;border-radius:8px;}
+
+  .sample-strip{background:rgba(251,191,36,.12);border-bottom:1px solid rgba(251,191,36,.35);color:var(--amber);
+    font-size:12px;font-weight:700;letter-spacing:.03em;padding:6px 16px;text-align:center;text-transform:uppercase;}
+
+  .wrap{max-width:1240px;margin:0 auto;padding:0 clamp(14px,3vw,28px) 60px;}
+
+  /* Header */
+  header.mkt{display:flex;align-items:center;gap:14px;padding:18px 0 8px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .brand .logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--deep));
+    display:grid;place-items:center;font-weight:800;color:#04231a;font-family:var(--mono);}
+  .brand b{font-size:16px;letter-spacing:-.01em;}
+  .brand small{display:block;color:var(--t3);font-size:12px;}
+  .header-spacer{flex:1;}
+  .menu-btn{display:none;width:44px;height:44px;border-radius:11px;background:var(--surface);border:1px solid var(--border);
+    place-items:center;flex:none;}
+  .menu-btn span{width:18px;height:2px;background:var(--t1);box-shadow:0 -5px 0 var(--t1),0 5px 0 var(--t1);}
+
+  .status-strip{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;
+    background:var(--surface);border:1px solid var(--border);flex-wrap:wrap;}
+  .avatar{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--emerald),var(--teal));
+    display:grid;place-items:center;font-weight:800;color:#04231a;font-size:12px;}
+  .status-strip .nm b{font-size:13px;}
+  .status-strip .nm small{color:var(--t3);font-size:11px;display:block;}
+  .hourpill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--bg-2);
+    border:1px solid var(--border);font-size:12px;color:var(--t2);}
+  .hourpill b{font-family:var(--mono);color:var(--emerald);}
+
+  /* Clock chip in header */
+  .clock-chip{display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;
+    background:var(--bg-2);border:1px solid var(--border);}
+  .clock-chip.on{border-color:rgba(52,211,153,.5);background:linear-gradient(135deg,rgba(52,211,153,.14),var(--bg-2));}
+  .clock-chip .rd{font-family:var(--mono);font-size:13px;min-width:66px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;
+    border-radius:11px;border:1px solid var(--border);background:var(--surface-2);color:var(--t1);
+    font-weight:700;font-size:13.5px;transition:filter .15s,background .15s,transform .1s;}
+  .btn:active{transform:scale(.98);}
+  .btn.go{background:linear-gradient(135deg,var(--emerald),var(--deep));color:#04231a;border-color:transparent;}
+  .btn.stop{background:linear-gradient(135deg,var(--coral),#e11d48);color:#fff;border-color:transparent;}
+  .btn.sm{min-height:44px;padding:0 13px;font-size:12.5px;}
+  .btn.ghost{background:transparent;}
+
+  /* Hero */
+  .mkt-hero{margin:18px 0 6px;}
+  .mkt-hero h1{margin:0;font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.02em;}
+  .mkt-hero p{margin:6px 0 0;color:var(--t2);font-size:14.5px;max-width:60ch;}
+  .hero-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+
+  /* Toolbar */
+  .toolbar{position:sticky;top:0;z-index:40;margin:18px 0;padding:14px;border-radius:16px;
+    background:rgba(12,33,29,.9);backdrop-filter:blur(10px);border:1px solid var(--border);
+    display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+  .search{flex:1;min-width:220px;display:flex;align-items:center;gap:9px;padding:0 14px;min-height:44px;
+    border-radius:11px;background:var(--bg-1);border:1px solid var(--border);}
+  .search input{flex:1;background:transparent;border:0;color:var(--t1);font-size:14px;outline:none;font-family:inherit;}
+  .search input::placeholder{color:var(--t3);}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;}
+  .fchip{min-height:44px;padding:0 15px;border-radius:11px;border:1px solid var(--border);background:var(--surface);
+    color:var(--t2);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:7px;}
+  .fchip[aria-pressed="true"]{background:linear-gradient(135deg,var(--teal),var(--deep));color:#04231a;border-color:transparent;}
+  .fchip .n{font-family:var(--mono);opacity:.8;}
+  .day-seg{display:inline-flex;background:var(--bg-1);border:1px solid var(--border);border-radius:11px;padding:3px;gap:2px;}
+  .day-seg button{min-height:44px;padding:0 15px;border:0;background:transparent;border-radius:8px;color:var(--t2);
+    font-weight:700;font-size:13px;}
+  .day-seg button[aria-pressed="true"]{background:linear-gradient(135deg,var(--teal),var(--emerald));color:#04231a;}
+
+  /* Layout */
+  .cols{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;}
+  .result-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 2px 12px;}
+  .result-head h2{margin:0;font-size:16px;font-weight:800;}
+  .result-head span{color:var(--t3);font-size:13px;}
+
+  /* Marketplace grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+  .listing{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;overflow:hidden;transition:border-color .15s,transform .15s;}
+  .listing:hover{border-color:var(--border-soft);transform:translateY(-2px);}
+  .listing.hide{display:none;}
+  .listing.claimed{border-color:rgba(52,211,153,.55);}
+  .listing.conflict{border-color:rgba(251,113,133,.4);}
+  .lst-top{padding:14px 14px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .lst-dept{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);}
+  .lbl{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:999px;letter-spacing:.03em;}
+  .lbl.urgent{background:rgba(251,113,133,.16);color:var(--coral);}
+  .lbl.needs{background:rgba(251,191,36,.16);color:var(--amber);}
+  .lbl.open{background:rgba(56,189,248,.16);color:var(--sky);}
+  .lst-body{padding:6px 14px 0;flex:1;}
+  .lst-title{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:4px 0 6px;}
+  .lst-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2);margin-bottom:5px;}
+  .lst-row .ic{width:16px;text-align:center;color:var(--t3);}
+  .cov{margin:12px 14px 0;}
+  .cov-bar{height:6px;border-radius:999px;background:var(--bg-3);overflow:hidden;}
+  .cov-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--amber),var(--coral));}
+  .cov-txt{display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-top:5px;}
+  .conflict-note{margin:12px 14px 0;padding:9px 11px;border-radius:10px;background:rgba(251,113,133,.1);
+    border:1px solid rgba(251,113,133,.3);color:#fda4af;font-size:12px;display:flex;gap:7px;}
+  .lst-foot{padding:14px;display:flex;gap:8px;align-items:center;}
+  .lst-foot .btn{flex:1;}
+  .claim-go{background:linear-gradient(135deg,var(--emerald),var(--deep));color:#04231a;border-color:transparent;}
+  .claim-warn{background:transparent;border-color:rgba(251,113,133,.5);color:#fda4af;}
+  /* inline confirm */
+  .confirm{display:none;padding:12px 14px;background:var(--bg-1);border-top:1px solid var(--border);}
+  .listing.confirming .confirm{display:block;}
+  .confirm p{margin:0 0 10px;font-size:12.5px;color:var(--t2);}
+  .confirm .row{display:flex;gap:8px;}
+
+  /* Sidebar */
+  .side{display:flex;flex-direction:column;gap:16px;position:sticky;top:92px;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+  .panel h3{margin:0;padding:13px 15px;font-size:13.5px;font-weight:800;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:8px;}
+  .panel .pb{padding:13px 15px;}
+  .my-shift{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border);}
+  .my-shift:last-child{border-bottom:0;}
+  .my-shift.hide{display:none;}
+  .my-shift .d{font-family:var(--mono);font-size:11px;color:var(--t3);width:34px;flex:none;text-align:center;line-height:1.3;}
+  .my-shift .d b{display:block;color:var(--t1);font-size:13px;}
+  .my-shift .r b{font-size:13.5px;}
+  .my-shift .r span{display:block;font-size:11.5px;color:var(--t2);}
+  .my-shift .r button{margin-top:4px;min-height:44px;background:none;border:0;color:var(--sky);font-size:12px;
+    font-weight:700;padding:0 8px;display:inline-flex;align-items:center;}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px;}
+  .kv dt{color:var(--t3);}
+  .kv dd{margin:0;}
+  .announce{border:1px solid rgba(251,113,133,.35);background:linear-gradient(135deg,rgba(251,113,133,.1),var(--surface));}
+  .announce.read{border-color:var(--border);background:var(--surface);}
+  .announce h3{border-color:rgba(251,113,133,.25);color:#fda4af;}
+  .announce.read h3{color:var(--t1);border-color:var(--border);}
+  .announce p{margin:0 0 12px;font-size:13px;color:var(--t2);}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(16px);z-index:200;
+    background:var(--surface-2);border:1px solid var(--emerald);color:var(--t1);padding:12px 18px;border-radius:12px;
+    font-weight:700;font-size:13.5px;box-shadow:0 12px 40px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+    transition:opacity .25s,transform .25s;max-width:90vw;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.warn{border-color:var(--amber);}
+
+  .switcher{margin:26px 0 0;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--border);
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .switcher .lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-right:4px;}
+  .switcher a{padding:8px 12px;border-radius:9px;background:var(--bg-2);border:1px solid var(--border);
+    text-decoration:none;font-size:12.5px;color:var(--t2);min-height:44px;display:inline-flex;align-items:center;}
+  .switcher a.here{color:#04231a;border-color:transparent;background:linear-gradient(135deg,var(--teal),var(--emerald));font-weight:700;}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+
+  /* Drawer for mobile my-schedule */
+  .drawer-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;}
+  body.nav-open .drawer-scrim{display:block;}
+
+  @media(max-width:900px){
+    .cols{grid-template-columns:1fr;}
+    .side{position:static;order:-1;}
+  }
+  @media(max-width:640px){
+    .menu-btn{display:grid;}
+    .toolbar{position:static;}
+    .side{position:fixed;z-index:120;top:0;right:0;bottom:0;width:min(90vw,370px);padding:76px 14px 24px;
+      background:var(--bg-0);overflow-y:auto;transform:translateX(105%);visibility:hidden;
+      transition:transform .2s ease,visibility .2s;}
+    body.nav-open{overflow:hidden;}
+    body.nav-open .side{transform:translateX(0);visibility:visible;}
+    .drawer-scrim{z-index:110;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important;}
+    .listing:hover{transform:none;}
+  }
+</style>
+</head>
+<body data-layout="shift-marketplace">
+<a class="skip-link" href="#main">Skip to open shifts</a>
+<div class="sample-strip">Non-production design sample &middot; Shift Marketplace layout</div>
+
+<div class="wrap">
+  <header class="mkt">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">Δ</div>
+      <div><b>Delta H Shift Board</b><small>Delta H Con 2027</small></div>
+    </div>
+    <div class="header-spacer"></div>
+    <div class="status-strip">
+      <div class="avatar" aria-hidden="true">JR</div>
+      <div class="nm"><b>Jamie Rivera</b><small>Guest Relations &middot; Approved</small></div>
+      <span class="hourpill"><b>6 completed</b> &middot; 12 scheduled &middot; 16 required</span>
+    </div>
+    <div class="clock-chip" id="clockChip">
+      <span class="rd" id="clockTime">Off duty</span>
+      <button class="btn go sm" data-action="clock-toggle" aria-pressed="false" id="clockBtn">Clock In</button>
+    </div>
+    <button class="menu-btn" data-action="toggle-menu" aria-label="Open my schedule" aria-expanded="false"><span></span></button>
+  </header>
+
+  <div class="mkt-hero">
+    <h1>Open shifts that need coverage</h1>
+    <p>Browse shifts still looking for volunteers, filter by department or urgency, and claim the ones that fit your weekend. We'll flag anything that overlaps a shift you already have.</p>
+    <div class="hero-actions">
+      <button class="btn go" data-action="browse-open">Browse open shifts</button>
+      <button class="btn ghost" data-action="toggle-menu">View my schedule</button>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span aria-hidden="true">&#128269;</span>
+      <span class="sr-only">Search open shifts</span>
+      <input type="text" id="searchInput" placeholder="Search shifts, e.g. badge, panel, green room" autocomplete="off">
+    </label>
+    <div class="filters" role="group" aria-label="Filter by department">
+      <button class="fchip" data-action="filter" data-filter="all" aria-pressed="true">All <span class="n" id="cAll">3</span></button>
+      <button class="fchip" data-action="filter" data-filter="registration" aria-pressed="false">Registration <span class="n">1</span></button>
+      <button class="fchip" data-action="filter" data-filter="guest" aria-pressed="false">Guest Relations <span class="n">1</span></button>
+      <button class="fchip" data-action="filter" data-filter="programming" aria-pressed="false">Programming <span class="n">1</span></button>
+    </div>
+    <div class="day-seg" role="group" aria-label="Filter by day">
+      <button data-action="set-day" data-day="all" aria-pressed="true">All days</button>
+      <button data-action="set-day" data-day="friday" aria-pressed="false">Friday</button>
+      <button data-action="set-day" data-day="saturday" aria-pressed="false">Saturday</button>
+      <button data-action="set-day" data-day="sunday" aria-pressed="false">Sunday</button>
+    </div>
+  </div>
+
+  <div class="cols">
+    <main id="main">
+      <div class="result-head">
+        <h2>Available shifts</h2>
+        <span id="resultCount">3 open shifts</span>
+      </div>
+      <div class="grid" id="grid">
+
+        <!-- Badge Pickup — conflicts with Saturday Guest Services -->
+        <article class="listing conflict" data-open="badge" data-dept="registration" data-day="saturday" data-title="badge pickup registration">
+          <div class="lst-top"><span class="lst-dept">Registration</span><span class="lbl needs">Needs 2</span></div>
+          <div class="lst-body">
+            <div class="lst-title">Badge Pickup</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#128197;</span> Saturday 8:00 AM &ndash; 12:00 PM</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#128205;</span> Registration Desk A lobby</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#9201;</span> 4 hours</div>
+          </div>
+          <div class="cov"><div class="cov-bar"><div class="cov-fill" style="width:33%"></div></div>
+            <div class="cov-txt"><span>1 of 3 filled</span><span>2 spots left</span></div></div>
+          <div class="conflict-note"><span aria-hidden="true">&#9888;</span> Overlaps your Saturday Guest Services shift (9:00 AM &ndash; 1:00 PM).</div>
+          <div class="lst-foot">
+            <button class="btn claim-warn" data-action="claim-shift" data-shift-id="badge">Claim anyway</button>
+            <button class="btn ghost sm" data-action="view-shift" data-shift="badge">Details</button>
+          </div>
+          <div class="confirm">
+            <p>This overlaps your <b>Saturday Guest Services</b> shift. Claiming it creates a scheduling conflict a coordinator will need to approve.</p>
+            <div class="row">
+              <button class="btn claim-go sm" data-action="confirm-claim" data-shift-id="badge">Confirm claim</button>
+              <button class="btn ghost sm" data-action="cancel-claim">Cancel</button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Panel Runner — no conflict -->
+        <article class="listing" data-open="panel" data-dept="programming" data-day="saturday" data-title="panel runner programming">
+          <div class="lst-top"><span class="lst-dept">Programming</span><span class="lbl open">Open</span></div>
+          <div class="lst-body">
+            <div class="lst-title">Panel Runner</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#128197;</span> Saturday 2:00 PM &ndash; 6:00 PM</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#128205;</span> Panel rooms 3&ndash;5</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#9201;</span> 4 hours &middot; no conflicts</div>
+          </div>
+          <div class="cov"><div class="cov-bar"><div class="cov-fill" style="width:50%;background:linear-gradient(90deg,var(--sky),var(--emerald))"></div></div>
+            <div class="cov-txt"><span>2 of 4 filled</span><span>2 spots left</span></div></div>
+          <div class="lst-foot">
+            <button class="btn claim-go" data-action="claim-shift" data-shift-id="panel">Claim shift</button>
+            <button class="btn ghost sm" data-action="view-shift" data-shift="panel">Details</button>
+          </div>
+        </article>
+
+        <!-- Green Room — conflicts with Sunday Line Control -->
+        <article class="listing conflict" data-open="green" data-dept="guest" data-day="sunday" data-title="green room support guest relations">
+          <div class="lst-top"><span class="lst-dept">Guest Relations</span><span class="lbl urgent">Urgent</span></div>
+          <div class="lst-body">
+            <div class="lst-title">Green Room Support</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#128197;</span> Sunday 11:00 AM &ndash; 3:00 PM</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#128205;</span> Green Room, backstage</div>
+            <div class="lst-row"><span class="ic" aria-hidden="true">&#9201;</span> 4 hours</div>
+          </div>
+          <div class="cov"><div class="cov-bar"><div class="cov-fill" style="width:0%"></div></div>
+            <div class="cov-txt"><span>0 of 2 filled</span><span>2 spots left</span></div></div>
+          <div class="conflict-note"><span aria-hidden="true">&#9888;</span> Overlaps your Sunday Line Control shift (10:00 AM &ndash; 2:00 PM).</div>
+          <div class="lst-foot">
+            <button class="btn claim-warn" data-action="claim-shift" data-shift-id="green">Claim anyway</button>
+            <button class="btn ghost sm" data-action="view-shift" data-shift="green">Details</button>
+          </div>
+          <div class="confirm">
+            <p>This overlaps your <b>Sunday Line Control</b> shift. Claiming it creates a scheduling conflict a coordinator will need to approve.</p>
+            <div class="row">
+              <button class="btn claim-go sm" data-action="confirm-claim" data-shift-id="green">Confirm claim</button>
+              <button class="btn ghost sm" data-action="cancel-claim">Cancel</button>
+            </div>
+          </div>
+        </article>
+
+      </div>
+      <p id="emptyState" style="display:none;color:var(--t3);text-align:center;padding:30px;">No open shifts match your filters. Try clearing the search or choosing "All days".</p>
+    </main>
+
+    <!-- Sidebar: my schedule + logistics -->
+    <div class="drawer-scrim" data-action="toggle-menu" aria-hidden="true"></div>
+    <aside class="side" id="side" aria-label="My schedule and details">
+      <div class="panel">
+        <h3><span aria-hidden="true">&#128203;</span> My confirmed shifts</h3>
+        <div class="pb" id="myShifts">
+          <div class="my-shift" data-day="friday">
+            <div class="d">FRI<b>2P</b></div>
+            <div class="r"><b>Registration Desk A</b><span>2:00 PM &ndash; 6:00 PM &middot; report 15 min early</span>
+              <button data-action="view-shift" data-shift="friday">View details</button></div>
+          </div>
+          <div class="my-shift" data-day="saturday">
+            <div class="d">SAT<b>9A</b></div>
+            <div class="r"><b>Guest Services</b><span>9:00 AM &ndash; 1:00 PM</span>
+              <button data-action="view-shift" data-shift="saturday">View details</button></div>
+          </div>
+          <div class="my-shift" data-day="sunday">
+            <div class="d">SUN<b>10A</b></div>
+            <div class="r"><b>Line Control</b><span>10:00 AM &ndash; 2:00 PM</span>
+              <button data-action="view-shift" data-shift="sunday">View details</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel announce" id="announce">
+        <h3><span aria-hidden="true">&#128227;</span> Coordinator note</h3>
+        <div class="pb">
+          <p><b>Friday orientation &mdash; 12:30 PM.</b> Guest Relations volunteers meet in Ballroom C before Friday shifts.</p>
+          <button class="btn sm" data-action="mark-read" id="markReadBtn">Mark as read</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><span aria-hidden="true">&#127976;</span> Logistics</h3>
+        <div class="pb">
+          <dl class="kv">
+            <dt>Crash space</dt><dd>Room 814 &middot; approved</dd>
+            <dt>Check-in</dt><dd>Friday after 4:00 PM</dd>
+            <dt>Safety</dt><dd>Operations Desk, extension 911</dd>
+          </dl>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <nav class="switcher" aria-label="Layout samples">
+    <span class="lab">Layout samples</span>
+    <a href="../index.html">&larr; Hub</a>
+    <a href="../01-command-center/index.html">01 Command Center</a>
+    <a href="../02-my-con-weekend/index.html">02 My Con Weekend</a>
+    <a class="here" href="../03-shift-marketplace/index.html" aria-current="page">03 Shift Marketplace</a>
+    <a href="../04-calm-check-in/index.html">04 Calm Check-In</a>
+  </nav>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<div class="sr-only" id="live" aria-live="polite"></div>
+
+<script>
+(function(){
+  var live=document.getElementById('live');
+  function announce(m){live.textContent='';setTimeout(function(){live.textContent=m;},30);}
+  var toast=document.getElementById('toast');
+  function showToast(m,warn){toast.textContent=m;toast.classList.toggle('warn',!!warn);toast.classList.add('show');
+    clearTimeout(toast._t);toast._t=setTimeout(function(){toast.classList.remove('show');},3200);}
+
+  // Clock
+  var clocked=false,sim=0,tick=null;
+  function pad(n){return(n<10?'0':'')+n;}
+  function rc(){document.getElementById('clockTime').textContent=
+    pad(Math.floor(sim/3600))+':'+pad(Math.floor(sim/60)%60)+':'+pad(sim%60);}
+  function setClock(on){
+    clocked=on;var chip=document.getElementById('clockChip'),b=document.getElementById('clockBtn');
+    b.setAttribute('aria-pressed',on?'true':'false');b.textContent=on?'Clock Out':'Clock In';
+    b.classList.toggle('go',!on);b.classList.toggle('stop',on);
+    if(on){chip.classList.add('on');sim=0;rc();tick=setInterval(function(){sim++;rc();},1000);
+      showToast('Clocked in at Registration Desk A');announce('Clocked in. Timer started.');}
+    else{chip.classList.remove('on');clearInterval(tick);document.getElementById('clockTime').textContent='Off duty';
+      showToast('Clocked out — hours logged');announce('Clocked out. Hours logged.');}
+  }
+
+  // Filters + search + day
+  var state={dept:'all',day:'all',q:''};
+  function apply(){
+    var q=state.q.toLowerCase(),shown=0,available=0;
+    document.querySelectorAll('#grid .listing').forEach(function(l){
+      var okDept=state.dept==='all'||l.dataset.dept===state.dept;
+      var okDay=state.day==='all'||l.dataset.day===state.day;
+      var okQ=!q||l.dataset.title.indexOf(q)>-1;
+      var vis=okDept&&okDay&&okQ;l.classList.toggle('hide',!vis);
+      if(vis){shown++;if(!l.classList.contains('claimed'))available++;}
+    });
+    document.getElementById('resultCount').textContent=available+' available · '+shown+' shown';
+    document.getElementById('emptyState').style.display=shown?'none':'block';
+    // my schedule filter by day too
+    document.querySelectorAll('#myShifts .my-shift').forEach(function(m){
+      m.classList.toggle('hide',!(state.day==='all'||m.dataset.day===state.day));});
+    announce(shown+' open shifts shown.');
+  }
+  function setFilter(f){state.dept=f;
+    document.querySelectorAll('[data-action="filter"]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.filter===f?'true':'false');});apply();}
+  function setDay(d){state.day=d;
+    document.querySelectorAll('[data-action="set-day"]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.day===d?'true':'false');});apply();}
+
+  // Claim (with conflict guard)
+  function doClaim(id){
+    var card=document.querySelector('.listing[data-open="'+id+'"]');if(!card||card.classList.contains('claimed'))return;
+    card.classList.remove('confirming');card.classList.add('claimed');
+    var title=card.querySelector('.lst-title').textContent;
+    var foot=card.querySelector('.lst-foot');
+    foot.innerHTML='<button class="btn" disabled style="flex:1;background:rgba(52,211,153,.15);color:var(--emerald);border-color:transparent;">Claimed &mdash; you\'re on it</button>';
+    var lbl=card.querySelector('.lbl');if(lbl){lbl.className='lbl open';lbl.textContent='Claimed';}
+    var n=document.getElementById('cAll');n.textContent=Math.max(0,parseInt(n.textContent,10)-1);
+    var additions={
+      badge:{day:'SAT',time:'8A',role:'Badge Pickup',meta:'8:00 AM – 12:00 PM · scheduling conflict'},
+      panel:{day:'SAT',time:'2P',role:'Panel Runner',meta:'2:00 PM – 6:00 PM · newly claimed'},
+      green:{day:'SUN',time:'11A',role:'Green Room Support',meta:'11:00 AM – 3:00 PM · scheduling conflict'}
+    };
+    var d=additions[id];
+    if(d){
+      var row=document.createElement('div');row.className='my-shift';row.dataset.day=card.dataset.day;
+      row.innerHTML='<div class="d">'+d.day+'<b>'+d.time+'</b></div><div class="r"><b>'+d.role+
+        '</b><span>'+d.meta+'</span><button data-action="view-shift" data-shift="'+id+'">View details</button></div>';
+      document.getElementById('myShifts').appendChild(row);
+    }
+    apply();
+    showToast('Claimed '+title+' — added to your schedule');
+    announce('Claimed '+title+'. Added to your schedule.');
+  }
+  function claim(btn){
+    var card=btn.closest('.listing');
+    if(card.classList.contains('conflict')){
+      // reveal inline confirm guard
+      document.querySelectorAll('.listing.confirming').forEach(function(c){c.classList.remove('confirming');});
+      card.classList.add('confirming');
+      var title=card.querySelector('.lst-title').textContent;
+      showToast('Heads up: '+title+' overlaps an existing shift',true);
+      announce('Warning: '+title+' overlaps a shift you already have. Confirm to claim anyway.');
+      var cb=card.querySelector('[data-action="confirm-claim"]');if(cb)cb.focus();
+    }else{doClaim(card.dataset.open);}
+  }
+
+  function markRead(){var a=document.getElementById('announce');a.classList.add('read');
+    var b=document.getElementById('markReadBtn');b.disabled=true;b.textContent='Read';
+    showToast('Announcement marked read');announce('Announcement marked as read.');}
+
+  function viewShift(id){
+    var map={friday:'Friday 2:00 PM – 6:00 PM at Registration Desk A. Report 15 minutes early. Orientation 12:30 PM in Ballroom C.',
+      saturday:'Saturday 9:00 AM – 1:00 PM at Guest Services.',
+      sunday:'Sunday 10:00 AM – 2:00 PM on Line Control.',
+      badge:'Badge Pickup — Saturday 8:00 AM – 12:00 PM at the Registration Desk A lobby. 1 of 3 spots filled. This overlaps Guest Services from 9:00 AM – 1:00 PM.',
+      panel:'Panel Runner — Saturday 2:00 PM – 6:00 PM in panel rooms 3–5. 2 of 4 spots filled. No conflicts with your schedule.',
+      green:'Green Room Support — Sunday 11:00 AM – 3:00 PM backstage. No spots filled yet. This overlaps Line Control from 10:00 AM – 2:00 PM.'};
+    showToast(map[id]||'Shift details');announce('Details: '+(map[id]||''));}
+
+  function toggleMenu(force){var open=typeof force==='boolean'?force:!document.body.classList.contains('nav-open');
+    document.body.classList.toggle('nav-open',open);
+    var m=document.querySelector('.menu-btn');if(m)m.setAttribute('aria-expanded',open?'true':'false');
+    if(open&&window.matchMedia('(max-width:640px)').matches){
+      var first=document.querySelector('#side [data-action="view-shift"]');
+      if(first)setTimeout(function(){first.focus();},40);
+    }else if(open){
+      document.getElementById('side').scrollIntoView();
+      document.body.classList.remove('nav-open');
+    }}
+
+  document.getElementById('searchInput').addEventListener('input',function(e){state.q=e.target.value;apply();});
+  document.addEventListener('click',function(e){
+    var el=e.target.closest('[data-action]');if(!el)return;var a=el.dataset.action;
+    if(a==='clock-toggle'){setClock(!clocked);}
+    else if(a==='filter'){setFilter(el.dataset.filter);}
+    else if(a==='set-day'){setDay(el.dataset.day);}
+    else if(a==='claim-shift'){claim(el);}
+    else if(a==='confirm-claim'){doClaim(el.dataset.shiftId);}
+    else if(a==='cancel-claim'){el.closest('.listing').classList.remove('confirming');announce('Claim cancelled.');}
+    else if(a==='mark-read'){markRead();}
+    else if(a==='view-shift'){viewShift(el.dataset.shift);}
+    else if(a==='browse-open'){document.getElementById('main').scrollIntoView();announce('Browsing open shifts.');}
+    else if(a==='toggle-menu'){toggleMenu();}
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){toggleMenu(false);
+    document.querySelectorAll('.listing.confirming').forEach(function(c){c.classList.remove('confirming');});}});
+  apply();
+})();
+</script>
+</body>
+</html>
