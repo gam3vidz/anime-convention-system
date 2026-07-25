@@ -426,6 +426,55 @@ function logAction(PDO $pdo, ?array $actor, string $action, string $details = ''
     }
 }
 
+// Bounded, server-side search over the activity log. Never returns the whole
+// table: page size is hard-capped and results are always newest-first with
+// pagination metadata. Search matches the action, details (which carry booth
+// ids, vendor names and note text), actor name, and a date fragment.
+function searchSystemLogs(PDO $pdo, array $input): array {
+    $q = cleanManagementText($input['q'] ?? '', 120);
+    $pageSize = (int)($input['pageSize'] ?? 25);
+    if ($pageSize < 1) $pageSize = 25;
+    $pageSize = min(50, $pageSize); // hard ceiling
+    $page = (int)($input['page'] ?? 1);
+    if ($page < 1) $page = 1;
+
+    $where = '';
+    $params = [];
+    if ($q !== '') {
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
+        $clauses = ['action LIKE ?', 'details LIKE ?', 'actor_name LIKE ?'];
+        $params = [$like, $like, $like];
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $q) === 1) {
+            $clauses[] = 'DATE(created_at) = ?';
+            $params[] = $q;
+        }
+        $where = 'WHERE ' . implode(' OR ', $clauses);
+    }
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM system_logs $where");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+    $totalPages = max(1, (int)ceil($total / $pageSize));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $pageSize;
+
+    $rowStmt = $pdo->prepare("SELECT id, actor_user_id, actor_name, action, details, created_at
+        FROM system_logs $where
+        ORDER BY created_at DESC, id DESC
+        LIMIT $pageSize OFFSET $offset");
+    $rowStmt->execute($params);
+    $rows = $rowStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    return [
+        'logs' => $rows,
+        'total' => $total,
+        'page' => $page,
+        'pageSize' => $pageSize,
+        'totalPages' => $totalPages,
+        'query' => $q
+    ];
+}
+
 function redirectToApp(string $query = ''): void {
     $base = dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
     $url = ($base === '/' ? '' : $base) . '/index.html' . $query;
@@ -593,13 +642,22 @@ function requireSafety(PDO $pdo, array $config): array {
 }
 
 function vendorHallSpotCodes(): array {
-    $codes = [];
-    foreach (['A', 'B', 'C', 'D'] as $section) {
-        for ($n = 1; $n <= 12; $n++) {
-            $codes[] = $section . $n;
-        }
-    }
-    return $codes;
+    // Fixed allowlist mirrored from the supplied vendor-hall floor plan (115 booths).
+    // Keep in lock-step with VENDOR_HALL_LAYOUT in core.js.
+    return [
+        'A001', 'A002', 'A003', 'A004', 'A005', 'A006', 'A007', 'A008', 'A009', 'A010',
+        'A011', 'A012', 'A013', 'A014', 'A015', 'A101', 'A102', 'A103', 'A104', 'A105',
+        'A106', 'A107', 'A108', 'A109', 'A110', 'A111', 'A112', 'A113', 'A114', 'A115',
+        'A201', 'A202', 'A203', 'A204', 'A205', 'A206', 'A207', 'A208', 'A209', 'A210',
+        'A211', 'A212', 'A213', 'A214', 'A215', 'A301', 'A302', 'A303', 'A304', 'A305',
+        'A306', 'A307', 'A308', 'A309', 'A310', 'A311', 'A312', 'D001', 'D002', 'D003',
+        'D004', 'D005', 'D006', 'D101', 'D102', 'D103', 'D104', 'D105', 'D106', 'D201',
+        'D202', 'D203', 'D204', 'D205', 'D206', 'D207', 'D208', 'D209', 'D210', 'D301',
+        'D302', 'D303', 'D304', 'D305', 'D306', 'D307', 'D308', 'D309', 'D310', 'D401',
+        'D402', 'D403', 'D404', 'D405', 'D406', 'SG1', 'SG2', 'SG3', 'SG4', 'SG5',
+        'SG6', 'SG7', 'SG8', 'SG9', 'SG10', 'SG11', 'SG12', 'SG13', 'SG14', 'SG15',
+        'SG16', 'SG17', 'SG18', 'SG19', 'SG20',
+    ];
 }
 
 function isValidVendorHallSpot(string $spotCode): bool {
@@ -663,6 +721,43 @@ function clearVendorHallAssignment(PDO $pdo, array $input): string {
     $spot = strtoupper(trim((string)($input['spotCode'] ?? '')));
     if (!isValidVendorHallSpot($spot)) fail("Choose a valid Vendor Hall position.");
     $pdo->prepare("DELETE FROM vendor_hall_assignments WHERE spot_code = ?")->execute([$spot]);
+    return $spot;
+}
+
+// Notes are append-only records tied to a booth id. Returns a map of
+// spot_code => list of notes in chronological (oldest-first) order.
+function vendorHallNotes(PDO $pdo): array {
+    $rows = $pdo->query("SELECT n.id, n.spot_code, n.note_text, n.created_by, n.author_name, n.created_at,
+            u.name AS created_by_name
+        FROM vendor_hall_notes n
+        LEFT JOIN users u ON u.id = n.created_by
+        ORDER BY n.spot_code ASC, n.created_at ASC, n.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $notes = [];
+    foreach ($rows as $row) {
+        $spot = (string)$row['spot_code'];
+        $notes[$spot][] = [
+            'id' => (int)$row['id'],
+            'spotCode' => $spot,
+            'noteText' => (string)$row['note_text'],
+            'authorName' => (string)($row['created_by_name'] ?? '') !== ''
+                ? (string)$row['created_by_name']
+                : (string)($row['author_name'] ?? ''),
+            'createdBy' => $row['created_by'] !== null ? (int)$row['created_by'] : null,
+            'createdAt' => (string)($row['created_at'] ?? '')
+        ];
+    }
+    return $notes;
+}
+
+function addVendorHallNote(PDO $pdo, array $user, array $input): string {
+    $spot = strtoupper(trim((string)($input['spotCode'] ?? '')));
+    if (!isValidVendorHallSpot($spot)) fail("Choose a valid Vendor Hall position.");
+    $note = cleanManagementText($input['noteText'] ?? '', 2000);
+    if ($note === '') fail("Enter a note before saving.");
+    $authorName = cleanManagementText($user['name'] ?? $user['discord_username'] ?? 'Volunteer', 160);
+    $stmt = $pdo->prepare("INSERT INTO vendor_hall_notes (spot_code, note_text, created_by, author_name)
+        VALUES (?, ?, ?, ?)");
+    $stmt->execute([$spot, $note, (int)$user['id'], $authorName]);
     return $spot;
 }
 
@@ -853,7 +948,9 @@ function getAppState(PDO $pdo, ?int $userId): array {
 
     $logs = [];
     if ($currentUser && isManagerRow($currentUser)) {
-        $logs = $pdo->query("SELECT * FROM system_logs ORDER BY created_at DESC, id DESC LIMIT 120")->fetchAll(PDO::FETCH_ASSOC);
+        // Bounded recent slice only. The full archive is reached through the
+        // paginated, server-side search_logs action rather than bundled state.
+        $logs = $pdo->query("SELECT * FROM system_logs ORDER BY created_at DESC, id DESC LIMIT 25")->fetchAll(PDO::FETCH_ASSOC);
 
         $visibleIds = array_values(array_filter(array_map(fn(array $row): int => (int)($row['id'] ?? 0), $visibleUsers)));
         if ($visibleIds) {
@@ -992,8 +1089,11 @@ function getAppState(PDO $pdo, ?int $userId): array {
     }
 
     $vendorHallAssignments = [];
+    $vendorHallNotes = new stdClass();
     if ($currentUser && isVendorHallRow($currentUser, $GLOBALS['config'] ?? [])) {
         $vendorHallAssignments = vendorHallAssignments($pdo);
+        $notes = vendorHallNotes($pdo);
+        if ($notes) $vendorHallNotes = $notes;
     }
 
     return [
@@ -1008,7 +1108,8 @@ function getAppState(PDO $pdo, ?int $userId): array {
         'incidents' => $incidents,
         'alertRules' => $alertRules,
         'alertDeliveries' => $alertDeliveries,
-        'vendorHallAssignments' => $vendorHallAssignments
+        'vendorHallAssignments' => $vendorHallAssignments,
+        'vendorHallNotes' => $vendorHallNotes
     ];
 }
 
@@ -2471,7 +2572,8 @@ try {
         case 'save_vendor_hall_assignment':
             $vendorUser = requireVendorHall($pdo, $config);
             $vendorSpot = saveVendorHallAssignment($pdo, $vendorUser, $input);
-            logAction($pdo, $vendorUser, 'vendor_hall_save', 'Saved the Vendor Hall assignment for position ' . $vendorSpot . '.');
+            $vendorName = cleanManagementText($input['vendorName'] ?? '', 160);
+            logAction($pdo, $vendorUser, 'vendor_hall_save', 'Assigned ' . $vendorName . ' to Vendor Hall position ' . $vendorSpot . '.');
             out(getAppState($pdo, (int)$vendorUser['id']));
             break;
 
@@ -2480,6 +2582,19 @@ try {
             $vendorSpot = clearVendorHallAssignment($pdo, $input);
             logAction($pdo, $vendorUser, 'vendor_hall_clear', 'Cleared the Vendor Hall assignment for position ' . $vendorSpot . '.');
             out(getAppState($pdo, (int)$vendorUser['id']));
+            break;
+
+        case 'add_vendor_hall_note':
+            $vendorUser = requireVendorHall($pdo, $config);
+            $vendorSpot = addVendorHallNote($pdo, $vendorUser, $input);
+            $noteExcerpt = cleanManagementText($input['noteText'] ?? '', 2000);
+            logAction($pdo, $vendorUser, 'vendor_hall_note', 'Added a Vendor Hall note for position ' . $vendorSpot . ': ' . $noteExcerpt);
+            out(getAppState($pdo, (int)$vendorUser['id']));
+            break;
+
+        case 'search_logs':
+            $logManager = requireManager($pdo);
+            out(searchSystemLogs($pdo, $input));
             break;
 
         case 'save_application':

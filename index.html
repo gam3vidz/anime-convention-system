@@ -6,8 +6,8 @@
     <meta name="description" content="Anime, manga, cosplay, games, artists, and community at Delta H." />
     <title>Delta H Anime &amp; Manga Festival</title>
     <link rel="icon" href="data:,">
-    <!-- Cache series advanced from styles.css?v=46 and core.js?v=46 for the public-platform release. -->
-    <link rel="stylesheet" href="styles.css?v=47" />
+    <!-- Cache series advanced to v=48 for the interactive Vendor Hall booth map. -->
+    <link rel="stylesheet" href="styles.css?v=48" />
     <style>
       .scrollable-form {
         max-height: none;
@@ -562,52 +562,95 @@
         <div class="page-heading">
           <div>
             <p class="eyebrow">Vendor Hall</p>
-            <h2 id="vendorHallTitle">Booth assignment map</h2>
+            <h2 id="vendorHallTitle">Interactive booth map</h2>
           </div>
           <div id="vendorHallSummary" class="vendor-hall-summary" aria-live="polite"></div>
         </div>
 
-        <section class="workspace-grid admin-grid vendor-hall-grid">
-          <div class="panel">
-            <div class="panel-heading">
+        <section class="vendor-hall-layout">
+          <div class="panel vendor-hall-map-panel">
+            <div class="panel-heading vendor-hall-map-heading">
               <div>
                 <p class="eyebrow">Floor plan</p>
-                <h2>Positions</h2>
-                <p class="summary">Select a booth to assign or edit a vendor. Occupied booths carry a filled marker and an "Occupied" label so state is never conveyed by color alone.</p>
+                <h2>Booth positions</h2>
+                <p class="summary">Click or press Enter on a booth to assign a vendor and read or add notes. Each state carries a distinct shape and text label, so status never depends on color alone.</p>
+              </div>
+              <div class="vendor-hall-zoom" role="group" aria-label="Map zoom controls">
+                <button type="button" id="vendorHallZoomOut" class="btn btn-sm" aria-label="Zoom out">−</button>
+                <span id="vendorHallZoomLabel" class="vendor-hall-zoom-label" aria-live="polite">100%</span>
+                <button type="button" id="vendorHallZoomIn" class="btn btn-sm" aria-label="Zoom in">+</button>
+                <button type="button" id="vendorHallZoomReset" class="btn btn-sm">Reset</button>
               </div>
             </div>
-            <div class="vendor-hall-legend" aria-hidden="true">
-              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-available"></span> Available</span>
-              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-occupied"></span> Occupied</span>
-              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-selected"></span> Selected</span>
+            <div class="vendor-hall-legend">
+              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-available" aria-hidden="true">○</span> Unassigned</span>
+              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip is-occupied" aria-hidden="true">●</span> Assigned vendor</span>
+              <span class="vendor-hall-legend-item"><span class="vendor-hall-chip has-notes" aria-hidden="true">✎</span> Has notes</span>
             </div>
-            <div id="vendorHallMap" class="vendor-hall-map" role="list" aria-label="Vendor Hall booth map"></div>
+            <div id="vendorHallMapFrame" class="vendor-hall-mapframe" tabindex="0" aria-label="Vendor hall floor plan. Scroll to pan across the map.">
+              <div id="vendorHallStage" class="vendor-hall-stage">
+                <img id="vendorHallImage" class="vendor-hall-image" src="./assets/vendor-hall-floor-plan.webp" alt="Vendor hall floor plan diagram showing all vendor booth positions and aisles" draggable="false" />
+                <div id="vendorHallMap" class="vendor-hall-map" role="list" aria-label="Vendor Hall booth targets"></div>
+              </div>
+            </div>
           </div>
 
-          <aside class="panel">
+          <aside class="panel vendor-hall-list-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Assignment</p>
-                <h2 id="vendorHallEditorTitle">Select a position</h2>
+                <p class="eyebrow">All booths</p>
+                <h2>Searchable list</h2>
+                <p class="summary">Every booth is reachable here without precise pointer input.</p>
               </div>
             </div>
-            <form id="vendorHallForm" class="form-grid" hidden>
+            <label class="vendor-hall-search-label" for="vendorHallSearch">Search booths
+              <input id="vendorHallSearch" type="search" placeholder="Booth ID or vendor name…" autocomplete="off" />
+            </label>
+            <p id="vendorHallListSummary" class="summary" aria-live="polite"></p>
+            <ul id="vendorHallList" class="vendor-hall-list" aria-label="Booth list"></ul>
+          </aside>
+        </section>
+
+        <div id="vendorHallDrawer" class="vendor-hall-drawer" role="dialog" aria-modal="true" aria-labelledby="vendorHallDrawerTitle" hidden>
+          <div class="vendor-hall-drawer-backdrop" data-vendor-drawer-close></div>
+          <div class="vendor-hall-drawer-panel" role="document">
+            <div class="vendor-hall-drawer-head">
+              <div>
+                <p class="eyebrow">Booth</p>
+                <h2 id="vendorHallDrawerTitle">Booth</h2>
+                <p id="vendorHallDrawerState" class="summary"></p>
+              </div>
+              <button type="button" class="icon-button" id="vendorHallDrawerClose" data-vendor-drawer-close aria-label="Close booth details">✕</button>
+            </div>
+
+            <form id="vendorHallForm" class="form-grid vendor-hall-assign-form" hidden>
               <input id="vendorHallSpotCode" type="hidden" />
               <label class="span-two">Vendor name
                 <input id="vendorHallVendorName" type="text" maxlength="160" autocomplete="off" required />
               </label>
-              <label class="span-two">Notes
-                <textarea id="vendorHallNotes" rows="4" maxlength="2000" placeholder="Optional setup details, power needs, contacts..."></textarea>
-              </label>
               <p id="vendorHallUpdatedMeta" class="summary"></p>
               <div class="form-actions">
-                <button class="primary-button" type="submit">Save assignment</button>
+                <button class="primary-button" type="submit">Save vendor</button>
                 <button id="vendorHallClearBtn" class="danger-button" type="button">Clear</button>
               </div>
+              <p id="vendorHallMessage" class="message" aria-live="polite"></p>
             </form>
-            <p id="vendorHallMessage" class="message" aria-live="polite"></p>
-          </aside>
-        </section>
+
+            <div class="vendor-hall-notes">
+              <h3>Notes</h3>
+              <ol id="vendorHallNoteList" class="vendor-hall-note-list" aria-label="Booth notes, oldest first"></ol>
+              <form id="vendorHallNoteForm" class="vendor-hall-note-form">
+                <label class="span-two">Add a note
+                  <textarea id="vendorHallNoteText" rows="3" maxlength="2000" placeholder="Setup details, power needs, contacts, incidents…" required></textarea>
+                </label>
+                <div class="form-actions">
+                  <button class="primary-button" type="submit">Add note</button>
+                </div>
+                <p id="vendorHallNoteMessage" class="message" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="safetyView" class="view safety-view" aria-labelledby="safetyTitle">
@@ -1173,10 +1216,20 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Logs</p>
-                <h2>Recent activity</h2>
+                <h2>Activity search</h2>
+                <p class="summary">Bounded, newest-first. Search booth IDs, vendors, notes, actions, people, or a YYYY-MM-DD date without loading the whole archive.</p>
               </div>
             </div>
+            <label class="system-log-search-label" for="systemLogSearch">Search activity
+              <input id="systemLogSearch" type="search" placeholder="Booth, vendor, action, name, or 2026-07-25…" autocomplete="off" />
+            </label>
+            <p id="systemLogStatus" class="summary" aria-live="polite"></p>
             <div id="systemLogList" class="admin-card-list"></div>
+            <div class="system-log-pager">
+              <button id="systemLogPrev" class="quiet-button" type="button">Previous</button>
+              <span id="systemLogPageLabel" class="summary" aria-live="polite"></span>
+              <button id="systemLogNext" class="quiet-button" type="button">Next</button>
+            </div>
           </aside>
         </section>
 
@@ -1325,6 +1378,6 @@
       </div>
     </dialog>
 
-    <script src="core.js?v=47"></script>
+    <script src="core.js?v=48"></script>
   </body>
 </html>

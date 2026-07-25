@@ -39,10 +39,12 @@ class VendorHallBackendTests(unittest.TestCase):
         self.assertIn("function vendorHallSpotCodes(): array", self.api)
         self.assertIn("function isValidVendorHallSpot(string", self.api)
         spots = php_function(self.api, "vendorHallSpotCodes")
-        self.assertIn("['A', 'B', 'C', 'D']", spots)
-        self.assertIn("$n <= 12", spots)
-        # Validation must gate both the save and clear helpers, not just the UI.
-        self.assertGreaterEqual(self.api.count("isValidVendorHallSpot("), 3)
+        # Real floor-plan allowlist (115 booths), not the old A-D x12 placeholder.
+        self.assertNotIn("$n <= 12", spots)
+        for booth in ("'A001'", "'A312'", "'D001'", "'D406'", "'SG1'", "'SG20'"):
+            self.assertIn(booth, spots)
+        # Validation must gate the save, clear, and note helpers, not just the UI.
+        self.assertGreaterEqual(self.api.count("isValidVendorHallSpot("), 4)
         save = php_function(self.api, "saveVendorHallAssignment")
         self.assertNotIn("mb_strlen", save)
         self.assertIn("cleanManagementText", save)
@@ -127,14 +129,17 @@ class ManagementPortalTests(unittest.TestCase):
             ".vendor-hall-spot",
             ".vendor-hall-spot.is-occupied",
             ".vendor-hall-spot.is-selected",
+            ".vendor-hall-spot.has-notes",
+            ".vendor-hall-mapframe",
             ".volunteer-profile-access",
             ".volunteer-profile-access-state.is-blacklisted",
         ):
             self.assertIn(marker, self.css)
-        self.assertIn("styles.css?v=46", self.html)
-        self.assertIn("core.js?v=46", self.html)
-        self.assertIn("grid-template-columns: repeat(12, minmax(48px, 1fr));", self.css)
-        self.assertIn("grid-template-columns: repeat(4, minmax(60px, 1fr));", self.css)
+        self.assertIn("styles.css?v=48", self.html)
+        self.assertIn("core.js?v=48", self.html)
+        # The map is an image overlay (percentage-positioned targets), not a CSS grid.
+        self.assertIn("position: absolute;", self.css)
+        self.assertNotIn("grid-template-columns: repeat(12, minmax(48px, 1fr));", self.css)
         self.assertNotIn("V0 COMMAND CENTER SHELL + ROSTER HANDOUTS", self.css)
         self.assertNotIn("--sidebar-w: 200px", self.css)
         self.assertNotIn(".brand-block { min-height: 56px; padding: 12px 14px; }", self.css)

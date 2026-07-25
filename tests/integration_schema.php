@@ -39,6 +39,7 @@ $expectedTables = [
     'user_shifts',
     'users',
     'vendor_hall_assignments',
+    'vendor_hall_notes',
     'volunteer_management_notes',
     'volunteer_management_profiles',
 ];
@@ -91,6 +92,31 @@ if ((int)$pdo->query('SELECT COUNT(*) FROM vendor_hall_assignments')->fetchColum
     exit(1);
 }
 
+$vendorHallNoteColumns = $pdo->query('SHOW COLUMNS FROM vendor_hall_notes')->fetchAll(PDO::FETCH_COLUMN);
+$requiredVendorHallNoteColumns = ['id', 'spot_code', 'note_text', 'created_by', 'author_name', 'created_at'];
+foreach ($requiredVendorHallNoteColumns as $column) {
+    if (!in_array($column, $vendorHallNoteColumns, true)) {
+        fwrite(STDERR, "Missing vendor_hall_notes.{$column}\n");
+        exit(1);
+    }
+}
+
+if ((int)$pdo->query('SELECT COUNT(*) FROM vendor_hall_notes')->fetchColumn() !== 0) {
+    fwrite(STDERR, "Fresh schema unexpectedly contains seeded vendor notes.\n");
+    exit(1);
+}
+
+// Append-only notes must accept inserts and preserve prior rows for a booth.
+$pdo->prepare("INSERT INTO vendor_hall_notes (spot_code, note_text, created_by, author_name) VALUES (?,?,?,?)")
+    ->execute(['A001', 'First note', null, 'Tester']);
+$pdo->prepare("INSERT INTO vendor_hall_notes (spot_code, note_text, created_by, author_name) VALUES (?,?,?,?)")
+    ->execute(['A001', 'Second note', null, 'Tester']);
+if ((int)$pdo->query("SELECT COUNT(*) FROM vendor_hall_notes WHERE spot_code = 'A001'")->fetchColumn() !== 2) {
+    fwrite(STDERR, "Append-only vendor notes did not preserve prior rows.\n");
+    exit(1);
+}
+$pdo->exec('DELETE FROM vendor_hall_notes');
+
 $ticketOrderColumns = $pdo->query('SHOW COLUMNS FROM ticket_orders')->fetchAll(PDO::FETCH_COLUMN);
 foreach (['idempotency_key', 'stripe_checkout_session_id', 'purchaser_email', 'payment_status', 'amount_total'] as $column) {
     if (!in_array($column, $ticketOrderColumns, true)) {
@@ -107,4 +133,4 @@ foreach (['order_id', 'order_item_id', 'sku', 'ticket_code', 'issued_at'] as $co
     }
 }
 
-fwrite(STDOUT, "Fresh MariaDB schema integration test passed (20 tables, idempotent).\n");
+fwrite(STDOUT, "Fresh MariaDB schema integration test passed (21 tables, idempotent).\n");

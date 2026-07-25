@@ -163,6 +163,19 @@ function ensureSchema(PDO $pdo): void {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (spot_code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Append-only notes tied to a booth position. Rows are never overwritten;
+    // adding a note is always an INSERT so the full history is preserved.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS vendor_hall_notes (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        spot_code VARCHAR(8) NOT NULL,
+        note_text TEXT NOT NULL,
+        created_by BIGINT UNSIGNED NULL,
+        author_name VARCHAR(160) NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_vendor_notes_spot (spot_code, created_at),
+        INDEX idx_vendor_notes_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TABLE IF NOT EXISTS user_availability (
         user_id BIGINT UNSIGNED NOT NULL,
         available_day VARCHAR(20) NOT NULL,

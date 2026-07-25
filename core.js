@@ -54,11 +54,129 @@ const SHIFT_TEMPLATES = [
   { name: "Info desk", title: "Info desk coverage", day: "Friday", time: "10:00 AM - 2:00 PM", hours: 4, capacity: 2, note: "Guest-facing desk" }
 ];
 
-let shifts = [], users = [], hotelRooms = [], systemLogs = [], guestFlights = [], pickupStaff = [], incidents = [], alertRules = [], alertDeliveries = [], vendorHallAssignments = [], currentUser = null, selectedShiftIds = new Set(), selectedVendorHallSpot = null, csrfToken = "";
+let shifts = [], users = [], hotelRooms = [], systemLogs = [], guestFlights = [], pickupStaff = [], incidents = [], alertRules = [], alertDeliveries = [], vendorHallAssignments = [], vendorHallNotes = {}, currentUser = null, selectedShiftIds = new Set(), selectedVendorHallSpot = null, csrfToken = "";
 
-const VENDOR_HALL_SPOTS = ["A", "B", "C", "D"].flatMap(section =>
-  Array.from({ length: 12 }, (_, index) => `${section}${index + 1}`)
-);
+const VENDOR_HALL_LAYOUT = [
+  {id:"D401",x:45.5,y:3.0,w:7.33,h:8.0},
+  {id:"D402",x:52.83,y:3.0,w:7.33,h:8.0},
+  {id:"D403",x:60.17,y:3.0,w:7.33,h:8.0},
+  {id:"D404",x:67.5,y:3.0,w:7.33,h:8.0},
+  {id:"D405",x:74.83,y:3.0,w:7.33,h:8.0},
+  {id:"D406",x:82.17,y:3.0,w:7.33,h:8.0},
+  {id:"A301",x:40.0,y:15.8,w:3.92,h:5.7},
+  {id:"A302",x:43.92,y:15.8,w:3.92,h:5.7},
+  {id:"A303",x:47.83,y:15.8,w:3.92,h:5.7},
+  {id:"A304",x:51.75,y:15.8,w:3.92,h:5.7},
+  {id:"A305",x:55.67,y:15.8,w:3.92,h:5.7},
+  {id:"A306",x:59.58,y:15.8,w:3.92,h:5.7},
+  {id:"A307",x:63.5,y:15.8,w:3.92,h:5.7},
+  {id:"A308",x:67.42,y:15.8,w:3.92,h:5.7},
+  {id:"A309",x:71.33,y:15.8,w:3.92,h:5.7},
+  {id:"A310",x:75.25,y:15.8,w:3.92,h:5.7},
+  {id:"A311",x:79.17,y:15.8,w:3.92,h:5.7},
+  {id:"A312",x:83.08,y:15.8,w:3.92,h:5.7},
+  {id:"A201",x:27.5,y:22.5,w:3.97,h:4.5},
+  {id:"A202",x:31.47,y:22.5,w:3.97,h:4.5},
+  {id:"A203",x:35.43,y:22.5,w:3.97,h:4.5},
+  {id:"A204",x:39.4,y:22.5,w:3.97,h:4.5},
+  {id:"A205",x:43.37,y:22.5,w:3.97,h:4.5},
+  {id:"A206",x:47.33,y:22.5,w:3.97,h:4.5},
+  {id:"A207",x:51.3,y:22.5,w:3.97,h:4.5},
+  {id:"A208",x:55.27,y:22.5,w:3.97,h:4.5},
+  {id:"A209",x:59.23,y:22.5,w:3.97,h:4.5},
+  {id:"A210",x:63.2,y:22.5,w:3.97,h:4.5},
+  {id:"A211",x:67.17,y:22.5,w:3.97,h:4.5},
+  {id:"A212",x:71.13,y:22.5,w:3.97,h:4.5},
+  {id:"A213",x:75.1,y:22.5,w:3.97,h:4.5},
+  {id:"A214",x:79.07,y:22.5,w:3.97,h:4.5},
+  {id:"A215",x:83.03,y:22.5,w:3.97,h:4.5},
+  {id:"A101",x:27.5,y:29.5,w:3.97,h:4.0},
+  {id:"A102",x:31.47,y:29.5,w:3.97,h:4.0},
+  {id:"A103",x:35.43,y:29.5,w:3.97,h:4.0},
+  {id:"A104",x:39.4,y:29.5,w:3.97,h:4.0},
+  {id:"A105",x:43.37,y:29.5,w:3.97,h:4.0},
+  {id:"A106",x:47.33,y:29.5,w:3.97,h:4.0},
+  {id:"A107",x:51.3,y:29.5,w:3.97,h:4.0},
+  {id:"A108",x:55.27,y:29.5,w:3.97,h:4.0},
+  {id:"A109",x:59.23,y:29.5,w:3.97,h:4.0},
+  {id:"A110",x:63.2,y:29.5,w:3.97,h:4.0},
+  {id:"A111",x:67.17,y:29.5,w:3.97,h:4.0},
+  {id:"A112",x:71.13,y:29.5,w:3.97,h:4.0},
+  {id:"A113",x:75.1,y:29.5,w:3.97,h:4.0},
+  {id:"A114",x:79.07,y:29.5,w:3.97,h:4.0},
+  {id:"A115",x:83.03,y:29.5,w:3.97,h:4.0},
+  {id:"A001",x:27.5,y:34.0,w:3.97,h:4.2},
+  {id:"A002",x:31.47,y:34.0,w:3.97,h:4.2},
+  {id:"A003",x:35.43,y:34.0,w:3.97,h:4.2},
+  {id:"A004",x:39.4,y:34.0,w:3.97,h:4.2},
+  {id:"A005",x:43.37,y:34.0,w:3.97,h:4.2},
+  {id:"A006",x:47.33,y:34.0,w:3.97,h:4.2},
+  {id:"A007",x:51.3,y:34.0,w:3.97,h:4.2},
+  {id:"A008",x:55.27,y:34.0,w:3.97,h:4.2},
+  {id:"A009",x:59.23,y:34.0,w:3.97,h:4.2},
+  {id:"A010",x:63.2,y:34.0,w:3.97,h:4.2},
+  {id:"A011",x:67.17,y:34.0,w:3.97,h:4.2},
+  {id:"A012",x:71.13,y:34.0,w:3.97,h:4.2},
+  {id:"A013",x:75.1,y:34.0,w:3.97,h:4.2},
+  {id:"A014",x:79.07,y:34.0,w:3.97,h:4.2},
+  {id:"A015",x:83.03,y:34.0,w:3.97,h:4.2},
+  {id:"D301",x:26.0,y:45.0,w:6.5,h:7.0},
+  {id:"D201",x:26.0,y:52.5,w:6.5,h:5.0},
+  {id:"D302",x:35.0,y:45.0,w:6.0,h:7.0},
+  {id:"D303",x:41.0,y:45.0,w:6.0,h:7.0},
+  {id:"D304",x:47.0,y:45.0,w:6.0,h:7.0},
+  {id:"D305",x:53.0,y:45.0,w:6.0,h:7.0},
+  {id:"D306",x:59.0,y:45.0,w:6.0,h:7.0},
+  {id:"D307",x:65.0,y:45.0,w:6.0,h:7.0},
+  {id:"D308",x:71.0,y:45.0,w:6.0,h:7.0},
+  {id:"D309",x:77.0,y:45.0,w:6.0,h:7.0},
+  {id:"D202",x:35.0,y:52.5,w:6.0,h:5.0},
+  {id:"D203",x:41.0,y:52.5,w:6.0,h:5.0},
+  {id:"D204",x:47.0,y:52.5,w:6.0,h:5.0},
+  {id:"D205",x:53.0,y:52.5,w:6.0,h:5.0},
+  {id:"D206",x:59.0,y:52.5,w:6.0,h:5.0},
+  {id:"D207",x:65.0,y:52.5,w:6.0,h:5.0},
+  {id:"D208",x:71.0,y:52.5,w:6.0,h:5.0},
+  {id:"D209",x:77.0,y:52.5,w:6.0,h:5.0},
+  {id:"D310",x:85.0,y:45.0,w:7.0,h:7.0},
+  {id:"D210",x:85.0,y:52.5,w:7.0,h:5.0},
+  {id:"D101",x:30.0,y:66.0,w:8.0,h:5.5},
+  {id:"D102",x:38.0,y:66.0,w:8.0,h:5.5},
+  {id:"D103",x:46.0,y:66.0,w:8.0,h:5.5},
+  {id:"D104",x:62.0,y:66.0,w:7.67,h:5.5},
+  {id:"D105",x:69.67,y:66.0,w:7.67,h:5.5},
+  {id:"D106",x:77.33,y:66.0,w:7.67,h:5.5},
+  {id:"D001",x:30.0,y:73.5,w:8.0,h:7.0},
+  {id:"D002",x:38.0,y:73.5,w:8.0,h:7.0},
+  {id:"D003",x:46.0,y:73.5,w:8.0,h:7.0},
+  {id:"D004",x:62.0,y:73.5,w:8.0,h:7.0},
+  {id:"D005",x:70.0,y:73.5,w:8.0,h:7.0},
+  {id:"D006",x:78.0,y:73.5,w:8.0,h:7.0},
+  {id:"SG2",x:10.0,y:88.0,w:4.25,h:5.3},
+  {id:"SG3",x:14.25,y:88.0,w:4.25,h:5.3},
+  {id:"SG1",x:10.0,y:93.3,w:4.25,h:5.3},
+  {id:"SG4",x:14.25,y:93.3,w:4.25,h:5.3},
+  {id:"SG6",x:23.0,y:88.0,w:4.25,h:5.3},
+  {id:"SG7",x:27.25,y:88.0,w:4.25,h:5.3},
+  {id:"SG5",x:23.0,y:93.3,w:4.25,h:5.3},
+  {id:"SG8",x:27.25,y:93.3,w:4.25,h:5.3},
+  {id:"SG10",x:35.0,y:88.0,w:4.25,h:5.3},
+  {id:"SG11",x:39.25,y:88.0,w:4.25,h:5.3},
+  {id:"SG9",x:35.0,y:93.3,w:4.25,h:5.3},
+  {id:"SG12",x:39.25,y:93.3,w:4.25,h:5.3},
+  {id:"SG14",x:50.0,y:88.0,w:4.25,h:5.3},
+  {id:"SG15",x:54.25,y:88.0,w:4.25,h:5.3},
+  {id:"SG13",x:50.0,y:93.3,w:4.25,h:5.3},
+  {id:"SG16",x:54.25,y:93.3,w:4.25,h:5.3},
+  {id:"SG18",x:62.0,y:88.0,w:3.75,h:5.3},
+  {id:"SG19",x:65.75,y:88.0,w:3.75,h:5.3},
+  {id:"SG17",x:62.0,y:93.3,w:3.75,h:5.3},
+  {id:"SG20",x:65.75,y:93.3,w:3.75,h:5.3},
+];
+const VENDOR_HALL_SPOTS = VENDOR_HALL_LAYOUT.map(booth => booth.id);
+let vendorHallSearch = "";
+let vendorHallZoom = 1;
+let vendorHallLastFocus = null;
 let selectedAvailabilityDay = "Thursday";
 // Command Center day filter. null = all scheduled days; otherwise one of
 // DASHBOARD_DAYS. Selecting a day rescopes the dashboard's shift-derived
@@ -507,6 +625,7 @@ function applyState(data) {
   alertRules = data.alertRules || [];
   alertDeliveries = data.alertDeliveries || [];
   vendorHallAssignments = data.vendorHallAssignments || [];
+  vendorHallNotes = data.vendorHallNotes || {};
   if (currentUser) {
     currentUser = normalizeUser(currentUser);
     const hydrated = users.find(u => String(u.id) === String(currentUser.id));
@@ -725,9 +844,47 @@ function bindEvents() {
   on("#volunteerProfileBlacklistToggle", "click", toggleVolunteerBlacklist);
   on("#vendorHallForm", "submit", saveVendorHallAssignment);
   on("#vendorHallClearBtn", "click", clearVendorHallAssignment);
+  on("#vendorHallNoteForm", "submit", addVendorHallNote);
+  on("#systemLogSearch", "input", (event) => onSystemLogSearchInput(event.target.value));
+  on("#systemLogPrev", "click", () => changeSystemLogPage(-1));
+  on("#systemLogNext", "click", () => changeSystemLogPage(1));
   on("#vendorHallMap", "click", (event) => {
     const spot = event.target.closest("[data-vendor-spot]");
-    if (spot) selectVendorHallSpot(spot.dataset.vendorSpot);
+    if (spot) openVendorHallDrawer(spot.dataset.vendorSpot);
+  });
+  on("#vendorHallList", "click", (event) => {
+    const spot = event.target.closest("[data-vendor-spot]");
+    if (spot) openVendorHallDrawer(spot.dataset.vendorSpot);
+  });
+  on("#vendorHallSearch", "input", (event) => { vendorHallSearch = event.target.value; renderVendorHallList(); });
+  on("#vendorHallZoomIn", "click", () => setVendorHallZoom(vendorHallZoom + 0.25));
+  on("#vendorHallZoomOut", "click", () => setVendorHallZoom(vendorHallZoom - 0.25));
+  on("#vendorHallZoomReset", "click", () => setVendorHallZoom(1));
+  on("#vendorHallDrawer", "click", (event) => {
+    if (event.target.closest("[data-vendor-drawer-close]")) closeVendorHallDrawer();
+  });
+  document.addEventListener("keydown", (event) => {
+    const drawer = $("#vendorHallDrawer");
+    if (!drawer || drawer.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeVendorHallDrawer();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(drawer.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+    )).filter(element => element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
   on("#newIncidentBtn", "click", startNewIncident);
   on("#clearIncidentBtn", "click", startNewIncident);
@@ -2079,81 +2236,176 @@ function vendorHallAssignmentMap() {
   return map;
 }
 
+// Notes are append-only and stored newest-computed as a map keyed by spot code.
+// Return the chronological (oldest-first) list for one booth.
+function vendorHallNotesFor(spot) {
+  const notes = vendorHallNotes && typeof vendorHallNotes === "object" ? vendorHallNotes[spot] : null;
+  return Array.isArray(notes) ? notes : [];
+}
+
+function vendorHallBoothState(spot, assignments) {
+  const assignment = assignments[spot] || null;
+  const hasNotes = vendorHallNotesFor(spot).length > 0;
+  const isOccupied = Boolean(assignment && (assignment.vendorName || "").trim());
+  return { assignment, hasNotes, isOccupied };
+}
+
 function renderVendorHall() {
   const grid = $("#vendorHallMap");
   if (!grid || !currentUser?.canVendorHall) return;
   const assignments = vendorHallAssignmentMap();
-  const occupied = Object.keys(assignments).length;
+  const occupied = VENDOR_HALL_SPOTS.filter(spot => vendorHallBoothState(spot, assignments).isOccupied).length;
+  const withNotes = VENDOR_HALL_SPOTS.filter(spot => vendorHallNotesFor(spot).length > 0).length;
   if ($("#vendorHallSummary")) {
-    $("#vendorHallSummary").textContent = `${occupied} occupied / ${VENDOR_HALL_SPOTS.length - occupied} available of ${VENDOR_HALL_SPOTS.length} positions`;
+    $("#vendorHallSummary").textContent =
+      `${occupied} assigned / ${VENDOR_HALL_SPOTS.length - occupied} unassigned of ${VENDOR_HALL_SPOTS.length} booths · ${withNotes} with notes`;
   }
-  grid.innerHTML = VENDOR_HALL_SPOTS.map(spot => {
-    const assignment = assignments[spot];
-    const isOccupied = Boolean(assignment);
+  grid.innerHTML = VENDOR_HALL_LAYOUT.map(booth => {
+    const spot = booth.id;
+    const { assignment, hasNotes, isOccupied } = vendorHallBoothState(spot, assignments);
     const isSelected = selectedVendorHallSpot === spot;
-    const stateLabel = isOccupied ? "Occupied" : "Available";
-    const vendor = isOccupied ? escapeHtml(assignment.vendorName) : "Available";
+    const stateLabel = isOccupied ? "Assigned" : "Unassigned";
+    const vendor = isOccupied ? assignment.vendorName : "";
+    const marker = isOccupied ? "●" : "○";
+    const classes = ["vendor-hall-spot"];
+    classes.push(isOccupied ? "is-occupied" : "is-available");
+    if (hasNotes) classes.push("has-notes");
+    if (isSelected) classes.push("is-selected");
+    const fullLabel = `Booth ${spot}, ${stateLabel}${vendor ? `, vendor ${vendor}` : ""}${hasNotes ? ", has notes" : ""}`;
     return `
       <button type="button" role="listitem"
-        class="vendor-hall-spot ${isOccupied ? "is-occupied" : "is-available"} ${isSelected ? "is-selected" : ""}"
+        class="${classes.join(" ")}"
         data-vendor-spot="${escapeHtml(spot)}"
+        style="left:${booth.x}%;top:${booth.y}%;width:${booth.w}%;height:${booth.h}%;"
         aria-pressed="${isSelected ? "true" : "false"}"
-        aria-label="Position ${escapeHtml(spot)}, ${stateLabel}${isOccupied ? `, ${vendor}` : ""}">
+        title="${escapeHtml(fullLabel)}"
+        aria-label="${escapeHtml(fullLabel)}">
         <span class="vendor-hall-spot-code">${escapeHtml(spot)}</span>
-        <span class="vendor-hall-spot-state">${isOccupied ? "●" : "○"} ${stateLabel}</span>
-        <span class="vendor-hall-spot-vendor">${vendor}</span>
+        <span class="vendor-hall-spot-marker" aria-hidden="true">${marker}${hasNotes ? "✎" : ""}</span>
+        ${vendor ? `<span class="vendor-hall-spot-vendor">${escapeHtml(vendor)}</span>` : ""}
       </button>`;
   }).join("");
-  renderVendorHallEditor();
+  renderVendorHallList();
+  if (selectedVendorHallSpot && !$("#vendorHallDrawer")?.hidden) renderVendorHallDrawer();
 }
 
-function renderVendorHallEditor() {
-  const form = $("#vendorHallForm");
-  const title = $("#vendorHallEditorTitle");
-  if (!form || !currentUser?.canVendorHall) return;
-  if (!selectedVendorHallSpot) {
-    form.hidden = true;
-    if (title) title.textContent = "Select a position";
-    const clearBtn = $("#vendorHallClearBtn");
-    if (clearBtn) clearBtn.hidden = true;
-    return;
+function renderVendorHallList() {
+  const list = $("#vendorHallList");
+  if (!list || !currentUser?.canVendorHall) return;
+  const assignments = vendorHallAssignmentMap();
+  const query = (vendorHallSearch || "").trim().toLowerCase();
+  const rows = VENDOR_HALL_SPOTS.filter(spot => {
+    if (!query) return true;
+    const vendor = (assignments[spot]?.vendorName || "").toLowerCase();
+    return spot.toLowerCase().includes(query) || vendor.includes(query);
+  });
+  if ($("#vendorHallListSummary")) {
+    $("#vendorHallListSummary").textContent = query
+      ? `${rows.length} of ${VENDOR_HALL_SPOTS.length} booths match “${vendorHallSearch.trim()}”.`
+      : `${VENDOR_HALL_SPOTS.length} booths.`;
   }
-  const assignment = vendorHallAssignmentMap()[selectedVendorHallSpot] || null;
-  form.hidden = false;
-  if (title) title.textContent = `Position ${selectedVendorHallSpot}`;
-  if ($("#vendorHallSpotCode")) $("#vendorHallSpotCode").value = selectedVendorHallSpot;
-  if ($("#vendorHallVendorName")) $("#vendorHallVendorName").value = assignment ? assignment.vendorName || "" : "";
-  if ($("#vendorHallNotes")) $("#vendorHallNotes").value = assignment ? assignment.notes || "" : "";
-  const clearBtn = $("#vendorHallClearBtn");
-  if (clearBtn) clearBtn.hidden = !assignment;
-  if ($("#vendorHallUpdatedMeta")) {
-    $("#vendorHallUpdatedMeta").textContent = assignment && assignment.updatedAt
-      ? `Last updated ${formatIncidentDate(assignment.updatedAt)}${assignment.updatedByName ? ` by ${assignment.updatedByName}` : ""}.`
-      : "No vendor assigned to this position yet.";
-  }
+  list.innerHTML = rows.length ? rows.map(spot => {
+    const { assignment, hasNotes, isOccupied } = vendorHallBoothState(spot, assignments);
+    const stateLabel = isOccupied ? "Assigned" : "Unassigned";
+    const vendor = isOccupied ? assignment.vendorName : "Unassigned";
+    const noteLabel = hasNotes ? " · has notes" : "";
+    return `
+      <li>
+        <button type="button" class="vendor-hall-list-item ${isOccupied ? "is-occupied" : "is-available"} ${hasNotes ? "has-notes" : ""}"
+          data-vendor-spot="${escapeHtml(spot)}"
+          aria-label="Booth ${escapeHtml(spot)}, ${stateLabel}${isOccupied ? `, vendor ${escapeHtml(vendor)}` : ""}${noteLabel}">
+          <span class="vendor-hall-list-code">${escapeHtml(spot)}</span>
+          <span class="vendor-hall-list-state" aria-hidden="true">${isOccupied ? "●" : "○"}${hasNotes ? "✎" : ""}</span>
+          <span class="vendor-hall-list-vendor">${escapeHtml(vendor)}</span>
+        </button>
+      </li>`;
+  }).join("") : `<li class="vendor-hall-list-empty">No booths match your search.</li>`;
+}
+
+function setVendorHallZoom(next) {
+  vendorHallZoom = Math.min(3, Math.max(1, Math.round(next * 100) / 100));
+  const stage = $("#vendorHallStage");
+  if (stage) stage.style.width = `${vendorHallZoom * 100}%`;
+  if ($("#vendorHallZoomLabel")) $("#vendorHallZoomLabel").textContent = `${Math.round(vendorHallZoom * 100)}%`;
 }
 
 function selectVendorHallSpot(spot) {
-  if (!VENDOR_HALL_SPOTS.includes(spot)) return;
+  openVendorHallDrawer(spot);
+}
+
+function openVendorHallDrawer(spot) {
+  if (!VENDOR_HALL_SPOTS.includes(spot) || !currentUser?.canVendorHall) return;
   selectedVendorHallSpot = spot;
+  vendorHallLastFocus = document.activeElement;
+  const drawer = $("#vendorHallDrawer");
+  if (drawer) drawer.hidden = false;
+  document.body.classList.add("vendor-hall-drawer-open");
   renderVendorHall();
+  renderVendorHallDrawer();
   const nameInput = $("#vendorHallVendorName");
-  if (nameInput) nameInput.focus();
+  if (nameInput && !nameInput.disabled) nameInput.focus();
+  else $("#vendorHallNoteText")?.focus();
+}
+
+function closeVendorHallDrawer() {
+  const drawer = $("#vendorHallDrawer");
+  if (drawer) drawer.hidden = true;
+  document.body.classList.remove("vendor-hall-drawer-open");
+  selectedVendorHallSpot = null;
+  renderVendorHall();
+  if (vendorHallLastFocus && typeof vendorHallLastFocus.focus === "function") vendorHallLastFocus.focus();
+  vendorHallLastFocus = null;
+}
+
+function renderVendorHallDrawer() {
+  const spot = selectedVendorHallSpot;
+  if (!spot) return;
+  const assignment = vendorHallAssignmentMap()[spot] || null;
+  const notes = vendorHallNotesFor(spot);
+  const isOccupied = Boolean(assignment && (assignment.vendorName || "").trim());
+  if ($("#vendorHallDrawerTitle")) $("#vendorHallDrawerTitle").textContent = `Booth ${spot}`;
+  if ($("#vendorHallDrawerState")) {
+    $("#vendorHallDrawerState").textContent =
+      `${isOccupied ? `Assigned to ${assignment.vendorName}` : "Unassigned"} · ${notes.length} note${notes.length === 1 ? "" : "s"}`;
+  }
+
+  const form = $("#vendorHallForm");
+  if (form) {
+    form.hidden = false;
+    if ($("#vendorHallSpotCode")) $("#vendorHallSpotCode").value = spot;
+    if ($("#vendorHallVendorName")) $("#vendorHallVendorName").value = assignment ? assignment.vendorName || "" : "";
+    const clearBtn = $("#vendorHallClearBtn");
+    if (clearBtn) clearBtn.hidden = !isOccupied;
+    if ($("#vendorHallUpdatedMeta")) {
+      $("#vendorHallUpdatedMeta").textContent = assignment && assignment.updatedAt
+        ? `Vendor last updated ${formatIncidentDate(assignment.updatedAt)}${assignment.updatedByName ? ` by ${assignment.updatedByName}` : ""}.`
+        : "No vendor assigned to this booth yet.";
+    }
+    if ($("#vendorHallMessage")) $("#vendorHallMessage").textContent = "";
+  }
+
+  const noteList = $("#vendorHallNoteList");
+  if (noteList) {
+    noteList.innerHTML = notes.length ? notes.map(note => `
+      <li class="vendor-hall-note">
+        <p class="vendor-hall-note-text">${escapeHtml(note.noteText || "")}</p>
+        <p class="vendor-hall-note-meta"><span>${escapeHtml(note.authorName || "Volunteer")}</span><span>${escapeHtml(formatIncidentDate(note.createdAt || ""))}</span></p>
+      </li>`).join("") : `<li class="vendor-hall-note-empty">No notes yet. Add the first note below.</li>`;
+  }
 }
 
 async function saveVendorHallAssignment(event) {
   event.preventDefault();
-  const message = $("#vendorHallMessage");
   const payload = {
     spotCode: $("#vendorHallSpotCode")?.value || selectedVendorHallSpot || "",
-    vendorName: $("#vendorHallVendorName")?.value || "",
-    notes: $("#vendorHallNotes")?.value || ""
+    vendorName: $("#vendorHallVendorName")?.value || ""
   };
   try {
     const data = await apiRequest("save_vendor_hall_assignment", payload);
     applyState(data);
-    if (message) message.textContent = `Saved position ${payload.spotCode}.`;
+    if ($("#vendorHallMessage")) $("#vendorHallMessage").textContent = `Saved booth ${payload.spotCode}.`;
   } catch (err) {
+    const message = $("#vendorHallMessage");
     if (message) message.textContent = err.message;
     showDialog([err.message]);
   }
@@ -2162,13 +2414,36 @@ async function saveVendorHallAssignment(event) {
 async function clearVendorHallAssignment() {
   const spot = $("#vendorHallSpotCode")?.value || selectedVendorHallSpot || "";
   if (!spot) return;
-  if (!confirm(`Clear the assignment for position ${spot}?`)) return;
-  const message = $("#vendorHallMessage");
+  if (!confirm(`Clear the vendor assignment for booth ${spot}? Notes are kept.`)) return;
   try {
     const data = await apiRequest("clear_vendor_hall_assignment", { spotCode: spot });
     applyState(data);
-    if (message) message.textContent = `Cleared position ${spot}.`;
+    if ($("#vendorHallMessage")) $("#vendorHallMessage").textContent = `Cleared booth ${spot}.`;
   } catch (err) {
+    const message = $("#vendorHallMessage");
+    if (message) message.textContent = err.message;
+    showDialog([err.message]);
+  }
+}
+
+async function addVendorHallNote(event) {
+  event.preventDefault();
+  const textInput = $("#vendorHallNoteText");
+  const spot = $("#vendorHallSpotCode")?.value || selectedVendorHallSpot || "";
+  const noteText = (textInput?.value || "").trim();
+  if (!noteText) {
+    const message = $("#vendorHallNoteMessage");
+    if (message) message.textContent = "Enter a note before saving.";
+    return;
+  }
+  try {
+    const data = await apiRequest("add_vendor_hall_note", { spotCode: spot, noteText });
+    applyState(data);
+    if ($("#vendorHallNoteText")) $("#vendorHallNoteText").value = "";
+    if ($("#vendorHallNoteMessage")) $("#vendorHallNoteMessage").textContent = "Note added.";
+    $("#vendorHallNoteList")?.querySelector(".vendor-hall-note:last-child")?.scrollIntoView({ block: "nearest" });
+  } catch (err) {
+    const message = $("#vendorHallNoteMessage");
     if (message) message.textContent = err.message;
     showDialog([err.message]);
   }
@@ -2292,19 +2567,96 @@ function renderDiscordDmTools() {
   if (volunteers.some(user => String(user.id) === String(current))) select.value = current;
 }
 
+// Bounded, server-side searched activity log. We never render the whole
+// table client-side; each page is a fresh capped query via search_logs.
+const logSearchState = { q: "", page: 1, pageSize: 25, total: 0, totalPages: 1, logs: null, loading: false, error: "", loadedFor: null };
+
 function renderSystemLogs() {
   const list = $("#systemLogList");
   if (!list || !isManagementUser(currentUser)) return;
-  list.innerHTML = systemLogs.length ? systemLogs.slice(0, 40).map(log => `
-    <article class="admin-list-card">
-      <div>
-        <strong>${escapeHtml(log.action || "activity")}</strong>
-        <span>${escapeHtml(log.created_at || "")}</span>
-      </div>
-      <span>${escapeHtml(log.details || "")}</span>
-      <span class="badge">${escapeHtml(log.actor_name || "System")}</span>
-    </article>
-  `).join("") : `<p class="summary">No logged activity yet.</p>`;
+  // First render for this user session triggers the initial bounded fetch.
+  if (logSearchState.loadedFor !== (currentUser?.id ?? null) && !logSearchState.loading) {
+    logSearchState.loadedFor = currentUser?.id ?? null;
+    logSearchState.page = 1;
+    fetchSystemLogs();
+  }
+  const status = $("#systemLogStatus");
+  const pageLabel = $("#systemLogPageLabel");
+  const prev = $("#systemLogPrev");
+  const next = $("#systemLogNext");
+
+  if (logSearchState.loading) {
+    list.innerHTML = `<p class="summary">Loading activity…</p>`;
+    if (status) status.textContent = "Loading…";
+  } else if (logSearchState.error) {
+    list.innerHTML = `<p class="message">${escapeHtml(logSearchState.error)}</p>`;
+    if (status) status.textContent = "Could not load activity.";
+  } else if (Array.isArray(logSearchState.logs) && logSearchState.logs.length) {
+    list.innerHTML = logSearchState.logs.map(log => `
+      <article class="admin-list-card system-log-entry">
+        <div>
+          <strong>${escapeHtml(log.action || "activity")}</strong>
+          <span>${escapeHtml(log.created_at || "")}</span>
+        </div>
+        <span>${escapeHtml(log.details || "")}</span>
+        <span class="badge">${escapeHtml(log.actor_name || "System")}</span>
+      </article>
+    `).join("");
+    if (status) {
+      status.textContent = logSearchState.q
+        ? `${logSearchState.total} match${logSearchState.total === 1 ? "" : "es"} for “${logSearchState.q}”.`
+        : `${logSearchState.total} logged event${logSearchState.total === 1 ? "" : "s"}.`;
+    }
+  } else if (Array.isArray(logSearchState.logs)) {
+    list.innerHTML = `<p class="summary">${logSearchState.q ? "No activity matches your search." : "No logged activity yet."}</p>`;
+    if (status) status.textContent = "";
+  } else {
+    list.innerHTML = `<p class="summary">Loading activity…</p>`;
+  }
+
+  if (pageLabel) pageLabel.textContent = `Page ${logSearchState.page} of ${logSearchState.totalPages}`;
+  if (prev) prev.disabled = logSearchState.loading || logSearchState.page <= 1;
+  if (next) next.disabled = logSearchState.loading || logSearchState.page >= logSearchState.totalPages;
+}
+
+async function fetchSystemLogs() {
+  if (!isManagementUser(currentUser)) return;
+  logSearchState.loading = true;
+  logSearchState.error = "";
+  renderSystemLogs();
+  try {
+    const data = await apiRequest("search_logs", {
+      q: logSearchState.q,
+      page: logSearchState.page,
+      pageSize: logSearchState.pageSize
+    });
+    logSearchState.logs = Array.isArray(data.logs) ? data.logs : [];
+    logSearchState.total = Number(data.total || 0);
+    logSearchState.page = Number(data.page || 1);
+    logSearchState.pageSize = Number(data.pageSize || logSearchState.pageSize);
+    logSearchState.totalPages = Number(data.totalPages || 1);
+  } catch (err) {
+    logSearchState.error = err.message || "Failed to load activity.";
+    logSearchState.logs = logSearchState.logs || [];
+  } finally {
+    logSearchState.loading = false;
+    renderSystemLogs();
+  }
+}
+
+let systemLogSearchTimer = null;
+function onSystemLogSearchInput(value) {
+  logSearchState.q = value;
+  logSearchState.page = 1;
+  if (systemLogSearchTimer) clearTimeout(systemLogSearchTimer);
+  systemLogSearchTimer = setTimeout(fetchSystemLogs, 250);
+}
+
+function changeSystemLogPage(delta) {
+  const next = logSearchState.page + delta;
+  if (next < 1 || next > logSearchState.totalPages || logSearchState.loading) return;
+  logSearchState.page = next;
+  fetchSystemLogs();
 }
 
 async function sendDiscordDmToVolunteer() {
@@ -4207,12 +4559,20 @@ function renderRosterPageTable() {
   const tbody = $("#rosterPageTableBody");
   if (!tbody) return;
   const search = rosterPageSearch.trim().toLowerCase();
+  // Item 12: pending applicants appear alongside approved volunteers. We only
+  // surface them — their status is never mutated or auto-approved here.
   const rows = managerVisibleUsers()
-    .filter(user => user.status === "approved")
+    .filter(user => user.status === "approved" || user.status === "pending")
     .filter(user => !search || String(user.name || "").toLowerCase().includes(search))
     .filter(user => !rosterPageDept || userDepartment(user) === rosterPageDept)
     .filter(user => !rosterPageGender || pagesGenderLabel(user) === rosterPageGender)
-    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    .sort((a, b) => {
+      // Pending first so they are easy to action, then alphabetical.
+      const ap = a.status === "pending" ? 0 : 1;
+      const bp = b.status === "pending" ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return String(a.name).localeCompare(String(b.name));
+    });
   tbody.innerHTML = rows.length ? rows.map(user => {
     const dept = userDepartment(user) || "Unassigned";
     const discord = user.discord || user.discord_username || user.discordUsername || "—";
@@ -4220,13 +4580,14 @@ function renderRosterPageTable() {
     const hotel = (user.hotelNeeded || user.hotel_needed) === "Yes";
     const checkedIn = !!user.clockedIn;
     const buddy = user.buddyRequest || user.buddy_request || user.friend || "";
+    const isPending = user.status === "pending";
     return `
-      <tr>
+      <tr class="${isPending ? "roster-row-pending" : ""}">
         <td>
           <div class="roster-cell">
             <div class="roster-avatar" style="background:${pagesAvatarGradient(user.id || user.name)};">${escapeHtml(initials(user.name))}</div>
             <div>
-              <div class="font-semibold">${escapeHtml(user.name)}</div>
+              <div class="font-semibold">${escapeHtml(user.name)} ${isPending ? `<span class="badge badge-warning roster-pending-badge">Pending</span>` : ""}</div>
               ${buddy ? `<div class="text-xs text-dim">Buddy: ${escapeHtml(buddy)}</div>` : ""}
             </div>
           </div>
